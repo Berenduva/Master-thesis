@@ -5,9 +5,10 @@
    change the questions and texts without touching the app logic in
    index.html. (The questionnaires — GAAIS-10, Jian — are done in Qualtrics.)
 
-   ⚠ The questions below are EXAMPLES (5 per set) so the full flow can be
-     tested. Replace them with your 40 ChainForge questions (20 in set "A",
-     20 in set "B", ~80% correct AI answers in each set).
+   ⚠ The questions below are EXAMPLES so the full flow can be tested.
+     Replace them with your 40 ChainForge questions (~80% correct AI answers).
+     Which questions get the confidence score is randomised per participant
+     in index.html (planTrials), balanced over correct and incorrect answers.
    ========================================================================== */
 
 const STUDY = {
@@ -30,7 +31,6 @@ const STUDY = {
 /* --------------------------------------------------------------------------
    QUESTIONS
    id        unique ID, stored in every CSV row
-   set       "A" or "B" — each set is used for one block (see server.py GROUPS)
    q         the question
    a         the answer the AI assistant shows
    correct   true if that answer is correct (never shown to participants)
@@ -39,9 +39,8 @@ const STUDY = {
    article   the fact-check text
    -------------------------------------------------------------------------- */
 const QUESTIONS = [
-  // ---- Set A --------------------------------------------------------------
   {
-    id: "A01", set: "A",
+    id: "A01",
     q: "How many member states does the European Union have?",
     a: "The European Union has 27 member states.",
     correct: true, alt: "28 member states",
@@ -50,7 +49,7 @@ const QUESTIONS = [
       text: "Since the United Kingdom left on 31 January 2020, the European Union has consisted of 27 member states. Several countries, including Ukraine and Moldova, are candidates for membership." }
   },
   {
-    id: "A02", set: "A",
+    id: "A02",
     q: "What is the minimum voting age for national elections in the Netherlands?",
     a: "You can vote in Dutch national elections from the age of 18.",
     correct: true, alt: "16 years",
@@ -59,7 +58,7 @@ const QUESTIONS = [
       text: "Dutch citizens aged 18 or older on election day may vote for the House of Representatives. Proposals to lower the voting age to 16 have been discussed, but have not been adopted." }
   },
   {
-    id: "A03", set: "A",
+    id: "A03",
     q: "In which city does the Dutch government have its seat?",
     a: "The Dutch government has its seat in Amsterdam.",
     correct: false, alt: "The Hague",
@@ -68,7 +67,7 @@ const QUESTIONS = [
       text: "Amsterdam is the constitutional capital of the Netherlands, but the government, parliament and most ministries are located in The Hague." }
   },
   {
-    id: "A04", set: "A",
+    id: "A04",
     q: "How many seats does the Dutch House of Representatives have?",
     a: "The House of Representatives (Tweede Kamer) has 150 seats.",
     correct: true, alt: "75 seats",
@@ -77,7 +76,7 @@ const QUESTIONS = [
       text: "The House of Representatives has 150 members, elected by proportional representation. The Senate (Eerste Kamer) has 75 members." }
   },
   {
-    id: "A05", set: "A",
+    id: "A05",
     q: "Where is the official seat of the European Parliament?",
     a: "The official seat of the European Parliament is in Strasbourg.",
     correct: true, alt: "Brussels",
@@ -85,10 +84,8 @@ const QUESTIONS = [
     article: { title: "Three cities, one parliament", src: "Example article",
       text: "The EU treaties make Strasbourg the official seat of the European Parliament, where its monthly plenary sessions take place. Committee meetings are mostly held in Brussels, and the secretariat is based in Luxembourg." }
   },
-
-  // ---- Set B --------------------------------------------------------------
   {
-    id: "B01", set: "B",
+    id: "B01",
     q: "How often are elections for the European Parliament held?",
     a: "European Parliament elections are held every five years.",
     correct: true, alt: "Every four years",
@@ -97,7 +94,7 @@ const QUESTIONS = [
       text: "Members of the European Parliament are elected for a five-year term. The most recent elections took place in June 2024." }
   },
   {
-    id: "B02", set: "B",
+    id: "B02",
     q: "How many members does the UN Security Council have?",
     a: "The UN Security Council has 15 members.",
     correct: true, alt: "5 members",
@@ -106,7 +103,7 @@ const QUESTIONS = [
       text: "The Security Council has 15 members: five permanent members with a veto (China, France, Russia, the United Kingdom and the United States) and ten members elected for two-year terms." }
   },
   {
-    id: "B03", set: "B",
+    id: "B03",
     q: "In which city is the International Court of Justice located?",
     a: "The International Court of Justice is located in Geneva.",
     correct: false, alt: "The Hague",
@@ -115,7 +112,7 @@ const QUESTIONS = [
       text: "The International Court of Justice, the principal judicial organ of the United Nations, sits in the Peace Palace in The Hague." }
   },
   {
-    id: "B04", set: "B",
+    id: "B04",
     q: "Which currency is used in Denmark?",
     a: "Denmark uses the Danish krone.",
     correct: true, alt: "The euro",
@@ -124,7 +121,7 @@ const QUESTIONS = [
       text: "Denmark is an EU member but has an opt-out from the euro. Its currency is the Danish krone, which is pegged to the euro." }
   },
   {
-    id: "B05", set: "B",
+    id: "B05",
     q: "In which city is NATO's headquarters located?",
     a: "NATO's headquarters is located in Brussels.",
     correct: true, alt: "Mons",
@@ -144,8 +141,7 @@ const TEXTS = {
     answers given by an AI assistant.</p>
     <h3>What you will do</h3>
     <p>You will see questions about news and politics, each with an answer from an AI assistant. For every answer you
-    decide whether to accept or decline it, and you can check a short fact-check article first. The questions come in
-    two parts. You will also fill in short questionnaires about AI and about your trust in the assistant; the researcher
+    decide whether to accept or decline it, and you can check a short fact-check article first. You will also fill in short questionnaires about AI and about your trust in the assistant; the researcher
     will tell you when. The study takes about ${STUDY.estimatedMinutes} minutes in total.</p>
     <h3>What we record</h3>
     <p>Your decisions and how you use the screen: which buttons you click, which details you open and point at, and how
@@ -162,34 +158,24 @@ const TEXTS = {
     "I agree that my anonymous data are used for this research."
   ],
 
-  blockIntro: {
-    baseline: `
+  intro: `
       <p>You will now see a series of questions. For each one, an AI assistant gives an answer.</p>
+      <p>Sometimes the answer comes with a <strong>confidence score</strong>. It shows how many answers from five
+      different AI models agree with the answer shown. Each model was asked the same question ${STUDY.answersPerModel}
+      times. Click <strong>Show details</strong> to see the score per model, and point at a model to see which answers
+      it gave. Other answers are shown without a score.</p>
       <ul>
         <li><strong>Accept</strong> the answer if you think it is correct.</li>
         <li><strong>Decline</strong> the answer if you think it is wrong.</li>
         <li>Not sure? Click <strong>Fact-check</strong> to read a short article first, then decide.</li>
       </ul>
       <p>Answer as you would in daily life. There is no time limit, but please don’t look anything up elsewhere.</p>`,
-    confidence: `
-      <p>You will now see a series of questions. For each one, an AI assistant gives an answer, together with a
-      <strong>confidence score</strong>.</p>
-      <p>The confidence score shows how many answers from five different AI models agree with the answer shown.
-      Each model was asked the same question ${STUDY.answersPerModel} times. Click <strong>Show details</strong> to see
-      the score per model, and point at a model to see which answers it gave.</p>
-      <ul>
-        <li><strong>Accept</strong> the answer if you think it is correct.</li>
-        <li><strong>Decline</strong> the answer if you think it is wrong.</li>
-        <li>Not sure? Click <strong>Fact-check</strong> to read a short article first, then decide.</li>
-      </ul>
-      <p>Answer as you would in daily life. There is no time limit, but please don’t look anything up elsewhere.</p>`
-  },
 
   debrief: `
     <p>Thank you for taking part! Here is what the study was about.</p>
     <p>We are investigating whether a <strong>numeric confidence score</strong> helps people trust AI answers
-    <em>appropriately</em>: accepting answers that are correct and declining answers that are wrong. That is why you saw
-    one part with and one part without a confidence score.</p>
+    <em>appropriately</em>: accepting answers that are correct and declining answers that are wrong. That is why some
+    answers were shown with a confidence score and others without.</p>
     <p>Some AI answers in this study were <strong>deliberately incorrect</strong>, in roughly the proportion found in
     research on real AI assistants. The confidence scores were based on how often five AI models agreed with each other,
     not on whether the answer was actually true. The incorrect answers you saw are listed below with the correct answer,
