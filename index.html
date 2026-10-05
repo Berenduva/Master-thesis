@@ -23,6 +23,11 @@
   Run `python server.py` and open http://localhost:8000.
   Researcher URL options: ?pid=P012  ?debug=1  (see server.py)
 
+  BETA MODE: while STUDY.beta is true (study-config.js), everyone sees the
+  researcher view beside the study: a live event log (hovers in seconds,
+  details, fact-check, decisions) and a table with the measures so far.
+  Set it to false before real data collection.
+
   If the page cannot reach server.py (e.g. opened as a file or from GitHub Pages)
   it still runs, shows a red "not saving" banner, and offers a backup download
   at the end so no data is lost.
@@ -82,11 +87,12 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; line-height: 1.55; padding: 20px 16px 48px; }
 .layout { max-width: 760px; margin: 0 auto; display: grid; gap: 16px; }
-body.debug .layout { max-width: 1240px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
+body.debug .layout { max-width: 1320px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
 @media (max-width: 900px) { body.debug .layout { grid-template-columns: minmax(0, 1fr); } }
 
 .banner { max-width: 760px; margin: 0 auto 12px; padding: 10px 14px; border-radius: 8px; background: var(--bad-soft); color: var(--bad); font-weight: 600; font-size: 0.9rem; }
-body.debug .banner { max-width: 1240px; }
+body.debug .banner { max-width: 1320px; }
+.banner.info { background: var(--warn-soft); color: var(--fg); font-weight: 500; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
 .card-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 0.85rem; color: var(--muted); }
@@ -177,9 +183,24 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .debug-panel dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 2px 10px; margin: 0; font-size: 0.8rem; }
 .debug-panel dt { color: var(--muted); }
 .debug-panel dd { margin: 0; font-family: var(--f-mono); overflow-wrap: anywhere; }
-.log { background: var(--log-bg); color: var(--log-fg); border-radius: 8px; padding: 10px 12px; font: 0.76rem/1.55 var(--f-mono); height: 340px; overflow-y: auto; }
+.log { background: var(--log-bg); color: var(--log-fg); border-radius: 8px; padding: 10px 12px; font: 0.76rem/1.55 var(--f-mono); height: 200px; overflow-y: auto; }
 .log div { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 8px; }
 .log .t { color: var(--log-dim); text-align: right; font-variant-numeric: tabular-nums; }
+.log .empty { color: var(--log-dim); display: block; }
+.debug-panel p.note { margin: 0; font-size: 0.8rem; color: var(--muted); }
+.debug-panel h3 { margin: 6px 0 0; font-size: 0.88rem; }
+.measures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.measure { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.measure b { display: block; font: 600 1.05rem var(--f-mono); font-variant-numeric: tabular-nums; }
+.measure span { font-size: 0.72rem; color: var(--muted); line-height: 1.3; display: block; }
+.tablewrap { overflow-x: auto; max-height: 320px; overflow-y: auto; }
+.debug-panel table { border-collapse: collapse; width: 100%; font-size: 0.76rem; font-variant-numeric: tabular-nums; }
+.debug-panel th, .debug-panel td { text-align: left; padding: 5px 7px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.debug-panel th { color: var(--muted); font-weight: 600; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; position: sticky; top: 0; background: var(--surface); }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.pill.ok { background: var(--good-soft); color: var(--good); }
+.pill.no { background: var(--bad-soft); color: var(--bad); }
+.beta-tag { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: var(--accent); color: var(--surface); font: 700 0.66rem var(--f-body); letter-spacing: 0.06em; vertical-align: middle; }
 @media (prefers-reduced-motion: reduce) { .linkbtn .chev, .bar i { transition: none; } }
 </style>
 </head>
@@ -197,13 +218,27 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <div class="card-foot" id="foot"></div>
   </main>
 
-  <aside class="debug-panel" id="debug" hidden aria-label="Researcher debug panel">
-    <h2>Researcher view</h2>
+  <!-- Researcher view: shown in beta mode (STUDY.beta) or with ?debug=1. Participants in the real study never see it. -->
+  <aside class="debug-panel" id="debug" hidden aria-label="Researcher view">
+    <h2>Researcher view <span class="beta-tag">BETA</span></h2>
+    <p class="note">This panel shows what the app records. It is hidden for participants in the real study.</p>
     <dl id="debug-info"></dl>
+
+    <h3>Event log (current question)</h3>
+    <p class="note">Times are seconds since the question appeared. Hovers count only after 300 ms on a model.</p>
+    <div class="log" id="debug-log"></div>
+
+    <h3>Measures so far</h3>
+    <div class="measures" id="measures"></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>#</th><th>Score shown</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Hover time</th><th>Fact-check</th><th>Time</th><th>Appropriate</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="10" class="muted">No decisions yet.</td></tr></tbody>
+      </table>
+    </div>
     <div class="actions">
       <button type="button" class="btn" id="dbg-skip">Skip to the end</button>
     </div>
-    <div class="log" id="debug-log"></div>
   </aside>
 </div>
 
@@ -229,7 +264,8 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const params = new URLSearchParams(location.search);
-const DEBUG = params.get("debug") === "1";
+// Researcher view on: in beta mode (study-config.js) or with ?debug=1 in the address.
+const DEBUG = params.get("debug") === "1" || STUDY.beta === true;
 
 /** Fisher–Yates shuffle (returns a new array). */
 function shuffle(arr) {
@@ -350,6 +386,7 @@ function saveTrial(row) {
   flushEvents();                       // keep events before the trial row in the files
   BACKUP.trials.push(row);
   Outbox.add("/api/trial", { pid: S.pid, trial: row });
+  renderMeasures();
 }
 
 function saveResponses(rows) {
@@ -386,10 +423,17 @@ async function init() {
     Object.assign(S, { pid: params.get("pid") || "LOCAL-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
       session_id: new Date().toISOString() });
     BACKUP.session = { pid: S.pid, offline: true };
-    showBanner("Not connected to the study server — data are NOT being saved to CSV. Start the study with “python server.py”.");
+    if (STUDY.beta) {
+      // Beta preview (e.g. on GitHub Pages): nothing is saved, the researcher view still shows everything.
+      showBanner("Beta preview — nothing is saved. The researcher view on the right shows what would be recorded.");
+      $("banner").classList.add("info");
+    } else {
+      showBanner("Not connected to the study server — data are NOT being saved to CSV. Start the study with “python server.py”.");
+    }
   }
   logEvent("session_start", { target: navigator.userAgent }, true);
   renderDebugInfo();
+  renderMeasures();
   go(0);
 }
 
@@ -719,16 +763,78 @@ function renderDebugInfo() {
   if (!DEBUG) return;
   $("debug-info").innerHTML = `
     <dt>Participant</dt><dd>${esc(S.pid)}</dd>
-    <dt>Server</dt><dd>${S.online ? "connected" : "OFFLINE"}</dd>
-    <dt>Step</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · trial ${ctx.trial} (${esc(ctx.question_id)}, ${esc(ctx.condition)}, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
+    <dt>Saving data</dt><dd>${S.online ? "yes (server connected)" : "no (offline)"}</dd>
+    <dt>Now</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · question ${ctx.trial} (${esc(ctx.question_id)}, ${ctx.condition === "confidence" ? "with" : "without"} score, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
 }
+
+/** Turn a raw event row into a readable sentence for the on-screen log. */
+function describeEvent(r) {
+  const sec = (ms) => (ms / 1000).toFixed(1) + " s";
+  switch (r.event) {
+    case "trial_shown":     return `Question ${r.trial} shown (${r.condition === "confidence" ? "with confidence score, " + String(r.value).replace("confidence ", "") : "without score"}; AI answer ${r.ai_correct ? "correct" : "incorrect"})`;
+    case "details_open":    return "Opened details";
+    case "details_close":   return "Closed details";
+    case "hover":           return r.value === "counted" ? `Hovered ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on ${r.target} (${sec(r.duration_ms)}, not counted)`;
+    case "model_click":     return `Clicked ${r.target} (${r.value})`;
+    case "factcheck_open":  return "Opened fact-check article";
+    case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} after ${sec(r.duration_ms)}`;
+    case "screen_shown":    return `Screen: ${r.target}`;
+    case "consent_given":   return "Consent given";
+    case "trial_plan":      return `Random plan made (${String(r.value).split(" ").filter(x => x.endsWith(":C")).length} of ${String(r.value).split(" ").length} questions with score)`;
+    case "tab_hidden":      return "Participant left the tab";
+    case "tab_visible":     return "Participant came back to the tab";
+    default:                return [r.event, r.target, r.value].filter(Boolean).join(" · ");
+  }
+}
+
 function debugLog(row) {
   if (!DEBUG) return;
   const el = $("debug-log");
-  const t = row.t_trial_ms !== "" ? (row.t_trial_ms / 1000).toFixed(1) + " s" : "–";
-  const extra = [row.target, row.value, row.duration_ms !== "" ? row.duration_ms + " ms" : ""].filter(Boolean).join(" · ");
-  el.insertAdjacentHTML("beforeend", `<div><span class="t">${t}</span><span>${esc(row.event)}${extra ? " — " + esc(extra) : ""}</span></div>`);
+  if (row.event === "trial_shown") el.innerHTML = "";         // log shows the current question only
+  if (row.event === "session_start" || row.event === "page_closed") return;
+  const t = row.t_trial_ms !== "" ? (row.t_trial_ms / 1000).toFixed(1) + " s" : "";
+  el.insertAdjacentHTML("beforeend", `<div><span class="t">${t}</span><span>${esc(describeEvent(row))}</span></div>`);
   el.scrollTop = el.scrollHeight;
+}
+
+/** Per-question table and summary measures, from the trial rows saved so far. */
+function renderMeasures() {
+  if (!DEBUG) return;
+  const r = BACKUP.trials;
+  const pct = (n, d) => d ? Math.round((n / d) * 100) + "%" : "–";
+  const accRate = (rows) => rows.length ? rows.filter(x => x.decision === "accept").length / rows.length : null;
+  // Trust calibration = accept rate for correct answers minus accept rate for incorrect answers.
+  const calib = (rows) => {
+    const c = accRate(rows.filter(x => x.ai_correct)), i = accRate(rows.filter(x => !x.ai_correct));
+    return c == null || i == null ? "needs both" : Math.round((c - i) * 100) + " pts";
+  };
+  const withScore = r.filter(x => x.condition === "confidence"), without = r.filter(x => x.condition === "baseline");
+
+  $("measures").innerHTML = [
+    [pct(r.filter(x => x.decision === "accept").length, r.length), "Accept rate"],
+    [pct(r.filter(x => x.factcheck_opened).length, r.length), "Fact-check rate"],
+    [pct(withScore.filter(x => x.details_opened).length, withScore.length), "Opened details (with score)"],
+    [pct(r.filter(x => x.appropriate).length, r.length), "Appropriate decisions"],
+    [calib(withScore), "Calibration with score"],
+    [calib(without), "Calibration without score"]
+  ].map(([v, l]) => `<div class="measure"><b>${v}</b><span>${l}</span></div>`).join("");
+
+  if (!r.length) return;
+  $("rows").innerHTML = r.map(x => {
+    const conf = x.condition === "confidence";
+    return `<tr>
+      <td>${x.trial}</td>
+      <td>${conf ? `yes (${x.overall_confidence}%)` : "no"}</td>
+      <td>${x.ai_correct ? "correct" : "incorrect"}</td>
+      <td>${x.decision}</td>
+      <td>${conf ? (x.details_opened ? "yes" : "no") : "–"}</td>
+      <td>${conf ? esc(x.hovered_models || "none") : "–"}</td>
+      <td>${conf ? (x.hover_total_ms / 1000).toFixed(1) + " s" : "–"}</td>
+      <td>${x.factcheck_opened ? "yes" : "no"}</td>
+      <td>${(x.rt_ms / 1000).toFixed(1)} s</td>
+      <td><span class="pill ${x.appropriate ? "ok" : "no"}">${x.appropriate ? "yes" : "no"}</span></td>
+    </tr>`;
+  }).join("");
 }
 $("dbg-skip").onclick = () => { if (FLOW[S.step].id === "trials" && skipBlock) skipBlock(); };
 
