@@ -21,6 +21,10 @@ const STUDY = {
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
 
+  // BETA: true = show the researcher view (live log + measures) next to the study,
+  // e.g. to demo it to your supervisor. Set to false before real data collection.
+  beta: true,
+
   // Each model was asked every question this many times (ChainForge runs).
   answersPerModel: 20,
 
@@ -151,11 +155,9 @@ const TEXTS = {
     <p>Participation is voluntary. You can stop at any moment without giving a reason, and you can ask for your data to
     be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}. Ethics reference: ${STUDY.ethicsReference}.</p>`,
 
+  // One checkbox for consent (stored as item "c1" in Pxxx_responses.csv).
   consentChecks: [
-    "I have read and understood the information above.",
-    "I am 18 years or older.",
-    "I take part voluntarily and know I can stop at any time.",
-    "I agree that my anonymous data are used for this research."
+    "I have read the information above, I am 18 years or older, and I voluntarily agree to take part and to my anonymous data being used for this research."
   ],
 
   intro: `
