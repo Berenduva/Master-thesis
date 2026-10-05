@@ -5,8 +5,12 @@
   Master's thesis, Berend de Vries (University of Amsterdam)
 
   Flow (one participant, one sitting):
-    consent → block 1 intro → block 1 questions
-            → block 2 intro → block 2 questions → debrief
+    consent → instructions → all questions (one block) → debrief
+
+  Condition per question: each question is shown either WITH the confidence
+  score ("confidence") or WITHOUT it ("baseline"). This is randomised per
+  participant, balanced so that half of the correct and half of the incorrect
+  AI answers get the score (see planTrials()).
 
   The questionnaires (GAAIS-10, Jian trust scale, final questions) are done
   separately in Qualtrics, not in this app.
@@ -17,7 +21,7 @@
     server.py         local Python server that serves this page and writes the CSV files
 
   Run `python server.py` and open http://localhost:8000.
-  Researcher URL options: ?pid=P012  ?group=1..4  ?debug=1  (see server.py)
+  Researcher URL options: ?pid=P012  ?debug=1  (see server.py)
 
   If the page cannot reach server.py (e.g. opened as a file or from GitHub Pages)
   it still runs, shows a red "not saving" banner, and offers a backup download
@@ -197,7 +201,7 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <h2>Researcher view</h2>
     <dl id="debug-info"></dl>
     <div class="actions">
-      <button type="button" class="btn" id="dbg-skip">Skip rest of block</button>
+      <button type="button" class="btn" id="dbg-skip">Skip to the end</button>
     </div>
     <div class="log" id="debug-log"></div>
   </aside>
@@ -249,22 +253,19 @@ const modelPct = (n) => Math.round((n / STUDY.answersPerModel) * 100);
    we" information that is attached to every logged event.
    =========================================================================== */
 const S = {
-  pid: null, session_id: null, group: null,
-  blocks: [],            // [{condition: "baseline"|"confidence", set: "A"|"B"}, …] from the server
+  pid: null, session_id: null,
   online: true,          // false when server.py could not be reached
   t0: performance.now(), // session start (for t_session_ms)
   step: 0,               // index into FLOW
   shownQuestions: []     // every question shown, for the debrief list
 };
-const ctx = { phase: "consent", block: "", condition: "", question_set: "", trial: "", question_id: "", ai_correct: "", trialStart: null };
+const ctx = { phase: "consent", condition: "", trial: "", question_id: "", ai_correct: "", trialStart: null };
 
 /* The study flow. Each step is rendered by the function with the same name in SCREENS. */
 const FLOW = [
   { id: "consent",  label: "Welcome" },
-  { id: "intro",    label: "Part 1 of 2 · Instructions", block: 0 },
-  { id: "trials",   label: "Part 1 of 2",                block: 0 },
-  { id: "intro",    label: "Part 2 of 2 · Instructions", block: 1 },
-  { id: "trials",   label: "Part 2 of 2",                block: 1 },
+  { id: "intro",    label: "Instructions" },
+  { id: "trials",   label: "Questions" },
   { id: "debrief",  label: "Thank you" }
 ];
 
@@ -316,7 +317,7 @@ let eventBuffer = [];
 let eventTimer = null;
 
 /**
- * Log one event. Every row gets the current context (phase, block, condition,
+ * Log one event. Every row gets the current context (phase, condition,
  * trial, question) plus timing:
  *   t_session_ms  ms since the page loaded
  *   t_trial_ms    ms since the current question appeared (empty outside trials)
@@ -327,7 +328,7 @@ function logEvent(event, { target = "", value = "", duration_ms = "" } = {}, urg
     session_id: S.session_id,
     client_time: new Date().toISOString(),
     t_session_ms: Math.round(t - S.t0),
-    phase: ctx.phase, block: ctx.block, condition: ctx.condition, question_set: ctx.question_set,
+    phase: ctx.phase, condition: ctx.condition,
     trial: ctx.trial, question_id: ctx.question_id, ai_correct: ctx.ai_correct,
     t_trial_ms: ctx.trialStart != null ? Math.round(t - ctx.trialStart) : "",
     event, target, value, duration_ms: duration_ms === "" ? "" : Math.round(duration_ms)
@@ -367,30 +368,27 @@ function showBanner(text) { const b = $("banner"); b.textContent = text; b.hidde
 function hideBanner() { $("banner").hidden = true; }
 
 /* ===========================================================================
-   3. START-UP: ask the server for a participant ID and block order
+   3. START-UP: ask the server for a participant ID
    =========================================================================== */
 async function init() {
   if (DEBUG) { document.body.classList.add("debug"); $("debug").hidden = false; }
-  const req = { pid: params.get("pid") || "", group: params.get("group") || "", screen: `${screen.width}x${screen.height}` };
+  const req = { pid: params.get("pid") || "", screen: `${screen.width}x${screen.height}` };
   try {
     const res = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
     const data = await res.json();
     if (!data.ok) throw new Error(data.error);
-    Object.assign(S, { pid: data.pid, session_id: data.session_id, group: data.group, blocks: data.blocks });
+    Object.assign(S, { pid: data.pid, session_id: data.session_id });
     BACKUP.session = data;
     if (data.pid_reused) showBanner(`Note for the researcher: participant ID ${data.pid} was used before. Data will be appended to the same files.`);
   } catch (e) {
     // Offline fallback: the study still works, data are kept for a download at the end.
     S.online = false;
-    const g = Number(params.get("group")) || 1 + Math.floor(Math.random() * 4);
-    const groups = { 1: [["baseline","A"],["confidence","B"]], 2: [["confidence","A"],["baseline","B"]],
-                     3: [["baseline","B"],["confidence","A"]], 4: [["confidence","B"],["baseline","A"]] };
     Object.assign(S, { pid: params.get("pid") || "LOCAL-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
-      session_id: new Date().toISOString(), group: g, blocks: groups[g].map(([condition, set]) => ({ condition, set })) });
-    BACKUP.session = { pid: S.pid, group: g, blocks: S.blocks, offline: true };
+      session_id: new Date().toISOString() });
+    BACKUP.session = { pid: S.pid, offline: true };
     showBanner("Not connected to the study server — data are NOT being saved to CSV. Start the study with “python server.py”.");
   }
-  logEvent("session_start", { value: `group ${S.group}`, target: navigator.userAgent }, true);
+  logEvent("session_start", { target: navigator.userAgent }, true);
   renderDebugInfo();
   go(0);
 }
@@ -401,16 +399,14 @@ async function init() {
 function go(step) {
   S.step = step;
   const s = FLOW[step];
-  const blk = s.block != null ? S.blocks[s.block] : null;
-  Object.assign(ctx, { phase: s.id, block: blk ? s.block + 1 : "", condition: blk ? blk.condition : "",
-    question_set: blk ? blk.set : "", trial: "", question_id: "", ai_correct: "", trialStart: null });
+  Object.assign(ctx, { phase: s.id, condition: "", trial: "", question_id: "", ai_correct: "", trialStart: null });
   $("step-label").textContent = s.label;
   $("step-bar").style.width = `${Math.round((step / (FLOW.length - 1)) * 100)}%`;
   $("foot").innerHTML = (s.id !== "consent" && s.id !== "debrief" && s.id !== "withdrawn")
     ? `<button type="button" class="linkbtn quiet" id="stop">Stop the study</button>` : "";
   if ($("stop")) $("stop").onclick = () => SCREENS.stopConfirm();
   logEvent("screen_shown", { target: s.id }, true);
-  SCREENS[s.id](blk, s.block);
+  SCREENS[s.id]();
   window.scrollTo(0, 0);
   renderDebugInfo();
 }
@@ -444,22 +440,22 @@ const SCREENS = {
     $("disagree").onclick = () => { logEvent("consent_declined", {}, true); SCREENS.withdrawn("declined"); };
   },
 
-  /* ---- Instructions before each block ------------------------------------ */
-  intro(blk, b) {
-    const n = QUESTIONS.filter(q => q.set === blk.set).length;
+  /* ---- Instructions ------------------------------------------------------ */
+  intro() {
     $("screen").innerHTML = `
-      <span class="label-sm">${b === 0 ? "First" : "Second"} set of questions · ${n} questions</span>
-      <h2 class="title">${blk.condition === "confidence" ? "This time, the AI shows a confidence score" : (b === 0 ? "How this works" : "This time, the AI shows only its answer")}</h2>
-      <div class="prose">${TEXTS.blockIntro[blk.condition]}</div>
+      <span class="label-sm">${QUESTIONS.length} questions</span>
+      <h2 class="title">How this works</h2>
+      <div class="prose">${TEXTS.intro}</div>
       <div class="actions"><button type="button" class="btn primary" id="go">Start</button></div>`;
     $("go").onclick = nextStep;
   },
 
-  /* ---- The question block ------------------------------------------------- */
-  trials(blk) {
-    // Question order is shuffled per participant; the order is visible in the logs (trial + question_id).
-    const list = shuffle(QUESTIONS.filter(q => q.set === blk.set));
-    runTrial(list, 0, blk);
+  /* ---- All questions in one block ---------------------------------------- */
+  trials() {
+    const plan = planTrials();
+    // Store the full plan once, so the random assignment can be checked later.
+    logEvent("trial_plan", { value: plan.map(p => `${p.q.id}:${p.condition === "confidence" ? "C" : "B"}`).join(" ") }, true);
+    runTrial(plan, 0);
   },
 
   /* ---- Debrief ------------------------------------------------------------ */
@@ -512,6 +508,28 @@ const SCREENS = {
 };
 
 /* ===========================================================================
+   5b. RANDOMISATION
+   ---------------------------------------------------------------------------
+   Every participant sees all questions in a random order. For each question,
+   whether the confidence score is shown is random, but balanced:
+     - correct AI answers:   half with score, half without
+     - incorrect AI answers: half with score, half without
+   (with an odd number, the extra one goes to a random condition).
+   So every participant gets the same mix, but WHICH questions have the score
+   differs per participant.
+   =========================================================================== */
+function planTrials() {
+  const assign = (qs) => {
+    const shuffled = shuffle(qs);
+    let half = Math.floor(shuffled.length / 2);
+    if (shuffled.length % 2 && Math.random() < 0.5) half++;
+    return shuffled.map((q, k) => ({ q, condition: k < half ? "confidence" : "baseline" }));
+  };
+  const plan = [...assign(QUESTIONS.filter(q => q.correct)), ...assign(QUESTIONS.filter(q => !q.correct))];
+  return shuffle(plan);   // random presentation order
+}
+
+/* ===========================================================================
    6. ONE TRIAL (question screen)
    ---------------------------------------------------------------------------
    Logged events per trial:
@@ -520,10 +538,10 @@ const SCREENS = {
      factcheck_open, decision.
    On the decision a summary row is written to Pxxx_trials.csv.
    =========================================================================== */
-function runTrial(list, i, blk) {
+function runTrial(list, i) {
   if (i >= list.length) { nextStep(); return; }
-  const q = list[i];
-  const conf = blk.condition === "confidence";
+  const { q, condition } = list[i];
+  const conf = condition === "confidence";
   const score = overallConfidence(q);
   S.shownQuestions.push(q);
 
@@ -531,8 +549,8 @@ function runTrial(list, i, blk) {
   const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
               factAt: null, pinned: null, activeHover: null, decided: false };
 
-  Object.assign(ctx, { phase: "trials", trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
-  $("step-label").textContent = `${FLOW[S.step].label} · Question ${i + 1} of ${list.length}`;
+  Object.assign(ctx, { phase: "trials", condition, trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
+  $("step-label").textContent = `Question ${i + 1} of ${list.length}`;
   renderDebugInfo();
 
   const modelRows = Object.entries(q.models).map(([name, n]) => `
@@ -639,8 +657,7 @@ function runTrial(list, i, blk) {
     const rt = t - ctx.trialStart;
     logEvent("decision", { value: choice, duration_ms: rt }, true);
     saveTrial({
-      session_id: S.session_id, group: S.group,
-      block: ctx.block, condition: blk.condition, question_set: blk.set,
+      session_id: S.session_id, condition,
       trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0,
       overall_confidence: score,                       // also stored in baseline (score existed, but was hidden)
       decision: choice,
@@ -657,13 +674,13 @@ function runTrial(list, i, blk) {
     });
     // No feedback on correctness (that would teach participants which answers are wrong).
     $("screen").querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
-    setTimeout(() => runTrial(list, i + 1, blk), 350);
+    setTimeout(() => runTrial(list, i + 1), 350);
   };
   $("accept").onclick = () => decide("accept");
   $("decline").onclick = () => decide("decline");
 
-  // Debug: let the researcher jump to the end of the block.
-  skipBlock = () => { logEvent("debug_skip_block", {}, true); nextStep(); };
+  // Debug: let the researcher jump to the debrief.
+  skipBlock = () => { logEvent("debug_skip", {}, true); nextStep(); };
 }
 
 /** Text in the "peek" box below the model list. */
@@ -700,13 +717,10 @@ function showBackupIfNeeded(needed) {
 let skipBlock = null;
 function renderDebugInfo() {
   if (!DEBUG) return;
-  const b = S.blocks.map((x, i) => `${i + 1}: ${x.condition} / set ${x.set}`).join("<br>");
   $("debug-info").innerHTML = `
     <dt>Participant</dt><dd>${esc(S.pid)}</dd>
-    <dt>Group</dt><dd>${esc(S.group)}</dd>
-    <dt>Blocks</dt><dd>${b}</dd>
     <dt>Server</dt><dd>${S.online ? "connected" : "OFFLINE"}</dd>
-    <dt>Step</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · trial ${ctx.trial} (${esc(ctx.question_id)}, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
+    <dt>Step</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · trial ${ctx.trial} (${esc(ctx.question_id)}, ${esc(ctx.condition)}, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
 }
 function debugLog(row) {
   if (!DEBUG) return;

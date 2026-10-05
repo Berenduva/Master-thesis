@@ -6,7 +6,7 @@ Local study server for the confidence-score thesis study
 What it does
 ------------
 1. Serves the study app (index.html, study-config.js) at http://localhost:8000
-2. Gives every new participant an ID (P001, P002, ...) and a counterbalancing group
+2. Gives every new participant an ID (P001, P002, ...)
 3. Saves everything the app sends into CSV files, one set per participant:
 
      data/participants.csv      one row per status change (started / finished / withdrew)
@@ -27,7 +27,6 @@ How to run
 
 Useful URL parameters for the researcher (add to the address):
     ?pid=P012        use a fixed participant ID instead of the next free one
-    ?group=3         force counterbalancing group 1-4 (handy for piloting)
     ?debug=1         show the live event log next to the participant screen
 
 The data/ folder is listed in .gitignore so participant data never ends up on GitHub.
@@ -56,37 +55,22 @@ PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 # this script) is refused, so participants can never download other people's data.
 STATIC_ALLOWED = re.compile(r"^/(index\.html|study-config\.js|favicon\.ico|assets/[\w\-./]+)?$")
 
-# --------------------------------------------------------------------------
-# Counterbalancing
-# --------------------------------------------------------------------------
-# The 40 questions are split into two fixed sets (A and B). Each participant does
-# one block per condition. The four groups balance both the ORDER of conditions
-# and WHICH question set is paired with which condition. Groups are assigned in
-# rotation (P001 -> 1, P002 -> 2, ...), so odd IDs start with the baseline block
-# and even IDs start with the confidence block.
-GROUPS = {
-    1: [("baseline", "A"), ("confidence", "B")],
-    2: [("confidence", "A"), ("baseline", "B")],
-    3: [("baseline", "B"), ("confidence", "A")],
-    4: [("confidence", "B"), ("baseline", "A")],
-}
+# Which questions are shown with / without the confidence score is randomised
+# per participant in the browser (index.html, planTrials) and saved per trial.
 
 # --------------------------------------------------------------------------
 # CSV column definitions (fixed order, so every file is easy to merge in R/pandas)
 # --------------------------------------------------------------------------
 PARTICIPANT_FIELDS = [
-    "pid", "session_id", "group",
-    "block1_condition", "block1_set", "block2_condition", "block2_set",
-    "status", "server_time", "user_agent", "screen",
+    "pid", "session_id", "status", "server_time", "user_agent", "screen",
 ]
 EVENT_FIELDS = [
     "pid", "session_id", "server_time", "client_time", "t_session_ms",
-    "phase", "block", "condition", "question_set", "trial", "question_id", "ai_correct",
+    "phase", "condition", "trial", "question_id", "ai_correct",
     "t_trial_ms", "event", "target", "value", "duration_ms",
 ]
 TRIAL_FIELDS = [
-    "pid", "session_id", "group", "block", "condition", "question_set",
-    "trial", "question_id", "ai_correct", "overall_confidence",
+    "pid", "session_id", "condition", "trial", "question_id", "ai_correct", "overall_confidence",
     "decision", "appropriate", "rt_ms",
     "details_opened", "details_toggles",
     "hover_count", "hovered_models", "hover_total_ms",
@@ -94,7 +78,7 @@ TRIAL_FIELDS = [
     "server_time",
 ]
 RESPONSE_FIELDS = [
-    "pid", "session_id", "instrument", "block", "condition",
+    "pid", "session_id", "instrument",
     "item_id", "item_text", "position", "value", "reverse_scored", "server_time",
 ]
 
@@ -227,7 +211,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
         return self.send_json({"ok": False, "error": "unknown route"}, HTTPStatus.NOT_FOUND)
 
     def start_session(self, body: dict):
-        """Assign (or accept) a participant ID and a counterbalancing group."""
+        """Assign (or accept) a participant ID."""
         with WRITE_LOCK:
             requested = str(body.get("pid") or "").strip()
             if requested and not PID_PATTERN.match(requested):
@@ -237,33 +221,18 @@ class StudyHandler(SimpleHTTPRequestHandler):
             pid = requested or f"P{next_participant_number():03d}"
             reused = requested in known_pids() if requested else False
 
-            # Group: forced via ?group=, otherwise derived from the ID number (rotation 1-4).
-            try:
-                group = int(body.get("group") or 0)
-            except ValueError:
-                group = 0
-            if group not in GROUPS:
-                m = re.search(r"(\d+)$", pid)
-                group = ((int(m.group(1)) - 1) % 4) + 1 if m else 1
-
-            blocks = GROUPS[group]
             session = {
                 "pid": pid,
                 "session_id": datetime.now().strftime("%Y%m%d-%H%M%S"),
-                "group": group,
-                "block1_condition": blocks[0][0], "block1_set": blocks[0][1],
-                "block2_condition": blocks[1][0], "block2_set": blocks[1][1],
                 "user_agent": self.headers.get("User-Agent", ""),
                 "screen": body.get("screen", ""),
             }
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS,
                         [{**session, "status": "started", "server_time": now_iso()}])
-        print(f"  -> participant {pid} started (group {group}: "
-              f"{blocks[0][0]}/{blocks[0][1]} then {blocks[1][0]}/{blocks[1][1]})"
+        print(f"  -> participant {pid} started"
               + ("  [WARNING: this ID was used before]" if reused else ""))
         return self.send_json({
             "ok": True, **session,
-            "blocks": [{"condition": c, "set": s} for c, s in blocks],
             "pid_reused": reused,
         })
 
