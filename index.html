@@ -85,6 +85,9 @@
    PAGE LAYOUT — one centred card; in debug mode a researcher log sits beside it
    =========================================================================== */
 * { box-sizing: border-box; }
+/* Elements with the "hidden" attribute stay hidden, even if a class gives them display:flex/grid
+   (without this, e.g. the per-model details were visible before clicking "Show details"). */
+[hidden] { display: none !important; }
 body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; line-height: 1.55; padding: 20px 16px 48px; }
 .layout { max-width: 760px; margin: 0 auto; display: grid; gap: 16px; }
 body.debug .layout { max-width: 1320px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; }
