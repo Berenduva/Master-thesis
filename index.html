@@ -1,36 +1,78 @@
 <!doctype html>
+<!--
+  ============================================================
+  CONFIDENCE STUDY PROTOTYPE
+  ============================================================
+  This file has three parts:
+    1. <style>   : how everything looks (colours, fonts, sizes)
+    2. <body>    : the fixed parts of the page (header, panels)
+    3. <script>  : the questions and everything that happens when
+                   you click or hover
+
+  QUICK GUIDE: what to edit where
+    - Add / change questions ............ search for  "EDIT: QUESTIONS"
+    - Change colours .................... search for  "EDIT: COLOURS"
+    - Change page title / intro text .... search for  "EDIT: HEADER TEXT"
+    - Change button labels .............. search for  "EDIT: BUTTON TEXT"
+    - Change the 300 ms hover threshold . search for  "EDIT: HOVER THRESHOLD"
+    - Change runs per model (now 20) .... search for  "EDIT: RUNS PER MODEL"
+
+  Tip: in VS Code press Ctrl+F and type "EDIT:" to jump between
+  all places you are likely to change.
+  ============================================================
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<!-- Text shown in the browser tab -->
 <title>Confidence Study Prototype</title>
+
+<!-- Fonts from Google Fonts (needs internet; without it the browser uses a fallback font) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
 <style>
-/* Layout: participant screen (left) beside a researcher log (right); stacks on narrow screens */
+/* ============================================================
+   PART 1: STYLE (how it looks)
+   Layout: participant screen (left) beside a researcher log (right);
+   on small screens they stack on top of each other.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   EDIT: COLOURS
+   All colours are defined once here as "variables" (--name).
+   Change a value here and it changes everywhere on the page.
+   The first block is light mode, the two blocks below are dark mode.
+   ------------------------------------------------------------ */
 :root {
-  --bg: #eef1f5;
-  --surface: #ffffff;
-  --surface-2: #f5f7fa;
-  --fg: #1a2230;
-  --muted: #5b6678;
-  --line: #d7dde6;
-  --accent: #2f4fd1;
-  --accent-soft: #e4e9fb;
-  --good: #1f7a4d;
+  --bg: #eef1f5;          /* page background */
+  --surface: #ffffff;     /* background of cards / panels */
+  --surface-2: #f5f7fa;   /* slightly darker background (answer bubble, top bar) */
+  --fg: #1a2230;          /* main text colour */
+  --muted: #5b6678;       /* grey text (captions, hints) */
+  --line: #d7dde6;        /* borders and empty part of bars */
+  --accent: #2f4fd1;      /* main blue: confidence bars, links, active buttons */
+  --accent-soft: #e4e9fb; /* light blue: hover background */
+  --good: #1f7a4d;        /* green: Accept button */
   --good-soft: #e1f2e9;
-  --bad: #b3362f;
+  --bad: #b3362f;         /* red: Decline button */
   --bad-soft: #f8e3e1;
-  --warn-soft: #fbf1dc;
-  --log-bg: #18202c;
-  --log-fg: #d6deea;
-  --log-dim: #8794a8;
+  --warn-soft: #fbf1dc;   /* yellow box after a decision */
+  --log-bg: #18202c;      /* dark background of the event log */
+  --log-fg: #d6deea;      /* text in the event log */
+  --log-dim: #8794a8;     /* timestamps in the event log */
+
+  /* Fonts: display = question text, body = normal text, mono = numbers and log */
   --f-display: "Newsreader", Georgia, "Times New Roman", serif;
   --f-body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-  --radius: 10px;
+
+  --radius: 10px;         /* how round the corners are */
 }
+/* Dark mode colours (used automatically when the computer is in dark mode) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #11161e; --surface: #1a212c; --surface-2: #212a37; --fg: #e6ebf2; --muted: #9aa6b8;
@@ -45,10 +87,13 @@
   --bad: #f08a83; --bad-soft: #3b2220; --warn-soft: #3a3020; --log-bg: #0b0f15; --log-fg: #d6deea; --log-dim: #7b889c;
   color-scheme: dark;
 }
+
+/* ---------- General page layout ---------- */
 * { box-sizing: border-box; }
 body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 40px; }
-.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; } /* max page width */
 
+/* ---------- Header (title + condition switch) ---------- */
 header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
 header.top h1 { font-family: var(--f-display); font-weight: 600; font-size: 1.7rem; margin: 0; line-height: 1.15; text-wrap: balance; }
 header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
@@ -58,39 +103,49 @@ header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
 .label-sm { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
 
+/* ---------- Two columns: participant screen (wider) + researcher view ---------- */
+/* 1.35fr / 1fr = left column is 1.35 times as wide as the right one */
 .grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+/* Below 860 px wide (phone/small window) the columns stack */
 @media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 
-/* Participant screen */
+/* ---------- Participant screen (left) ---------- */
 .screen { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
 .screen-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 0.85rem; color: var(--muted); }
+/* Progress bar: one small block per question */
 .progress { display: flex; gap: 4px; }
 .progress span { width: 22px; height: 5px; border-radius: 3px; background: var(--line); }
-.progress span.done { background: var(--accent); }
-.progress span.now { background: var(--fg); }
+.progress span.done { background: var(--accent); }  /* answered questions */
+.progress span.now { background: var(--fg); }       /* current question */
 .screen-body { padding: 22px 20px 24px; display: flex; flex-direction: column; gap: 18px; }
 
+/* Question text and AI answer bubble */
 .question { font-family: var(--f-display); font-size: 1.35rem; font-weight: 500; line-height: 1.3; margin: 0; text-wrap: balance; }
 .bubble { display: flex; gap: 12px; align-items: flex-start; }
 .avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 700 0.75rem var(--f-body); letter-spacing: 0.04em; }
 .answer { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px var(--radius) var(--radius) var(--radius); padding: 12px 14px; min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 12px; }
 .answer p { margin: 0; font-size: 1.02rem; }
 
+/* Overall confidence score (number + bar) */
 .conf { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .conf-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .conf-num { font: 600 1.25rem var(--f-mono); font-variant-numeric: tabular-nums; }
-.meter { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
-.meter i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.meter { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; } /* grey bar */
+.meter i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }                         /* blue filled part */
 .conf-cap { font-size: 0.82rem; color: var(--muted); }
+/* "Show details" link button and its little arrow */
 .linkbtn { align-self: flex-start; border: 0; background: none; color: var(--accent); font: 600 0.88rem var(--f-body); padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .linkbtn .chev { transition: transform .2s; display: inline-block; }
 .linkbtn[aria-expanded="true"] .chev { transform: rotate(90deg); }
 
+/* Per-model rows (inside "Show details") */
 .details { display: flex; flex-direction: column; gap: 6px; }
+/* 82px = width of the model name, then the bar, then 48px for the percentage */
 .model { display: grid; grid-template-columns: 82px minmax(0,1fr) 48px; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid transparent; background: transparent; color: var(--fg); font: 500 0.88rem var(--f-body); padding: 6px 8px; border-radius: 8px; cursor: default; }
 .model:hover, .model:focus-visible, .model.active { background: var(--accent-soft); border-color: var(--line); outline: none; }
 .model .pct { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .model .meter { height: 6px; min-width: 0; }
+/* "Peek" box: shows the answers of the model you hover over */
 .peek { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 0.86rem; min-height: 74px; }
 .peek .hint { color: var(--muted); }
 .peek h4 { margin: 0 0 6px; font-size: 0.86rem; }
@@ -99,6 +154,7 @@ header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
 .peek li b { font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 .peek li.match span { font-weight: 600; }
 
+/* Accept / Decline / Fact-check buttons */
 .actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 0.95rem var(--f-body); padding: 10px 18px; border-radius: 8px; cursor: pointer; }
 .btn:hover:not(:disabled) { border-color: var(--fg); }
@@ -108,22 +164,26 @@ header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
 .btn.fact[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .btn:focus-visible, .linkbtn:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* Fact-check article box */
 .article { border-left: 3px solid var(--accent); background: var(--surface-2); padding: 12px 14px; border-radius: 0 8px 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .article h3 { font-family: var(--f-display); font-weight: 600; font-size: 1.08rem; margin: 0; }
 .article p { margin: 0; font-size: 0.92rem; max-width: 65ch; }
 .article .src { font-size: 0.78rem; color: var(--muted); }
 
+/* Yellow box after a decision, with the "Next question" button */
 .done-msg { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: var(--warn-soft); border-radius: 8px; padding: 10px 14px; font-size: 0.92rem; }
 
-/* Researcher view */
+/* ---------- Researcher view (right) ---------- */
 .research { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .panel h2 { margin: 0; font-size: 0.95rem; }
 .panel p.note { margin: 0; font-size: 0.82rem; color: var(--muted); }
+/* Event log (dark box); height: 260px = how tall the log is before it scrolls */
 .log { background: var(--log-bg); color: var(--log-fg); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.6 var(--f-mono); height: 260px; overflow-y: auto; }
 .log div { display: grid; grid-template-columns: 58px minmax(0,1fr); gap: 8px; }
 .log .t { color: var(--log-dim); font-variant-numeric: tabular-nums; text-align: right; }
 .log .empty { color: var(--log-dim); display: block; }
+/* Results table */
 .tablewrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
@@ -131,22 +191,34 @@ th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: 
 .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; }
 .pill.ok { background: var(--good-soft); color: var(--good); }
 .pill.no { background: var(--bad-soft); color: var(--bad); }
+/* Measure tiles (accept rate, etc.) */
 .measures { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .measure { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
 .measure b { display: block; font: 600 1.1rem var(--f-mono); font-variant-numeric: tabular-nums; }
 .measure span { font-size: 0.74rem; color: var(--muted); }
 .footnote { font-size: 0.8rem; color: var(--muted); max-width: 90ch; }
+/* No animations for people who turned off animations on their computer */
 @media (prefers-reduced-motion: reduce) { .linkbtn .chev { transition: none; } }
 </style>
 </head>
 <body>
 
+<!-- ============================================================
+     PART 2: PAGE STRUCTURE
+     These are the fixed parts. The question, answer and buttons
+     are NOT written here; they are filled in by the script
+     (see function render() in Part 3).
+     ============================================================ -->
 <div class="wrap">
+
+  <!-- Header with title and the condition switch -->
   <header class="top">
     <div>
+      <!-- EDIT: HEADER TEXT (title and short intro) -->
       <h1>Confidence score study: question screen</h1>
       <p>Clickable mock-up with example questions. The left side is what a participant sees; the right side shows what the app logs.</p>
     </div>
+    <!-- Switch between the two conditions (for testing; in the real study you set this per participant) -->
     <div class="controls">
       <span class="label-sm">Condition</span>
       <div class="seg" role="group" aria-label="Condition">
@@ -157,14 +229,18 @@ th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: 
   </header>
 
   <div class="grid">
+
+    <!-- LEFT: what the participant sees -->
     <section class="screen" aria-label="Participant screen">
       <div class="screen-bar">
-        <span id="qcount">Question 1 of 3</span>
-        <div class="progress" id="progress" aria-hidden="true"></div>
+        <span id="qcount">Question 1 of 3</span>                 <!-- filled in by the script -->
+        <div class="progress" id="progress" aria-hidden="true"></div> <!-- progress blocks, filled in by the script -->
       </div>
+      <!-- The question, answer, score and buttons are put in here by render() -->
       <div class="screen-body" id="screen"></div>
     </section>
 
+    <!-- RIGHT: researcher view (remove this whole <aside> for the real study) -->
     <aside class="research" aria-label="Researcher view">
       <div class="panel">
         <h2>Event log (current question)</h2>
@@ -188,6 +264,30 @@ th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: 
 </div>
 
 <script>
+/* ============================================================
+   PART 3: SCRIPT (questions + behaviour)
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   EDIT: QUESTIONS
+   Each question is one block between { and }, separated by commas.
+   To add a question: copy a whole block (from { to },), paste it
+   below the last one, and change the text.
+
+   Fields per question:
+     q       : the question the participant reads
+     a       : the answer the AI assistant gives (shown on screen)
+     correct : true if the AI answer is right, false if it is wrong
+     alt     : the other answer some model runs gave (shown on hover)
+     models  : per model, how many of its 20 runs AGREE with answer "a"
+               (a number from 0 to 20; 15 means 15/20 = 75%)
+               You can rename, add or remove models here.
+     article : the news article shown when the participant fact-checks
+               (title, src = source name, text)
+
+   Watch out: text must stay between "quotes". If your text contains
+   a " itself, write \" instead.
+   ------------------------------------------------------------ */
 const QUESTIONS = [
   {
     q: "How many member states does the European Union have?",
@@ -213,28 +313,78 @@ const QUESTIONS = [
     models: { ChatGPT: 3, Claude: 1, Gemini: 6, Copilot: 4, Grok: 9 },
     article: { title: "Capital versus seat of government", src: "Example article", text: "Amsterdam is the constitutional capital of the Netherlands, but the government, parliament and most ministries are located in The Hague." }
   }
+  // ← paste new questions above this line (and put a comma after the previous block)
 ];
 
+/* ------------------------------------------------------------
+   SETTINGS
+   ------------------------------------------------------------ */
+// EDIT: RUNS PER MODEL
+// How many times each model was asked each question in ChainForge.
+// If you change this (e.g. to 10), the numbers in "models" above must be between 0 and that number.
+const RUNS_PER_MODEL = 20;
+
+// EDIT: HOVER THRESHOLD
+// A hover is only logged if the mouse stays on a model at least this many seconds.
+// 0.3 = 300 milliseconds. This filters out accidental mouse movements.
+const HOVER_MIN_SECONDS = 0.3;
+
+/* ------------------------------------------------------------
+   STATE: everything the app remembers while it runs.
+   You normally don't need to change this.
+     idx      : which question is shown (0 = first)
+     cond     : "confidence" or "baseline"
+     t0       : the moment the question appeared (to calculate times)
+     events   : the event log of the current question
+     details  : is "Show details" open?
+     fact     : has the fact-check been opened?
+     hovered  : which models were hovered long enough
+     decided  : null, "accept" or "decline"
+     results  : one row per answered question (for the table)
+     pinned   : model that was clicked (keeps its answers visible)
+   ------------------------------------------------------------ */
 const state = { idx: 0, cond: "confidence", t0: 0, events: [], details: false, fact: false, hovered: new Set(), decided: null, results: [], pinned: null };
-const hoverStart = {};
-const $ = (id) => document.getElementById(id);
-const now = () => (performance.now() - state.t0) / 1000;
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const hoverStart = {}; // remembers when the mouse entered each model row
 
-function overall(q) { return Object.values(q.models).reduce((a, b) => a + b, 0); }
+/* Small helper functions */
+const $ = (id) => document.getElementById(id);                 // shortcut to find an element by its id
+const now = () => (performance.now() - state.t0) / 1000;       // seconds since the question appeared
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); // makes text safe to show
 
+// Overall confidence score = total agreeing runs of all models,
+// as a percentage of all runs (e.g. 59 of 100 → 59%).
+function overall(q) {
+  const agree = Object.values(q.models).reduce((a, b) => a + b, 0);
+  const total = Object.keys(q.models).length * RUNS_PER_MODEL;
+  return Math.round((agree / total) * 100);
+}
+
+// Per-model score as a percentage (e.g. 13 of 20 → 65%)
+function modelPct(n) { return Math.round((n / RUNS_PER_MODEL) * 100); }
+
+/* ------------------------------------------------------------
+   EVENT LOG
+   logEvent("text") adds one line to the log with the current time.
+   In the real study, this is where you would also SAVE the event
+   (e.g. send it to your local server).
+   ------------------------------------------------------------ */
 function logEvent(text) {
   state.events.push({ t: now(), text });
   renderLog();
 }
 
+// Draws the event log on the right
 function renderLog() {
   const el = $("log");
   if (!state.events.length) { el.innerHTML = '<span class="empty">Waiting for the question…</span>'; return; }
   el.innerHTML = state.events.map(e => `<div><span class="t">${e.t.toFixed(1)} s</span><span>${esc(e.text)}</span></div>`).join("");
-  el.scrollTop = el.scrollHeight;
+  el.scrollTop = el.scrollHeight; // scroll to the newest line
 }
 
+/* ------------------------------------------------------------
+   START A QUESTION ("trial")
+   Resets everything for a new question and starts the timer.
+   ------------------------------------------------------------ */
 function startTrial() {
   state.t0 = performance.now();
   state.events = []; state.details = false; state.fact = false; state.hovered = new Set(); state.decided = null; state.pinned = null;
@@ -242,29 +392,48 @@ function startTrial() {
   render();
 }
 
+/* ------------------------------------------------------------
+   PEEK BOX: the text shown when you hover over a model.
+   It shows how many runs gave answer "a" and how many gave "alt".
+   ------------------------------------------------------------ */
 function peekHTML(name) {
   const q = QUESTIONS[state.idx];
-  if (!name) return '<span class="hint">Hover over a model to see the answers it gave.</span>';
+  if (!name) return '<span class="hint">Hover over a model to see the answers it gave.</span>'; // EDIT: hint text
   const n = q.models[name];
-  return `<h4>${esc(name)}: ${n} of 20 answers agree</h4><ul>
-    <li class="match"><b>${n}/20</b><span>${esc(q.a)}</span></li>
-    ${20 - n > 0 ? `<li><b>${20 - n}/20</b><span>${esc(q.alt)}</span></li>` : ""}
+  const other = RUNS_PER_MODEL - n;
+  return `<h4>${esc(name)}: ${n} of ${RUNS_PER_MODEL} answers agree</h4><ul>
+    <li class="match"><b>${n}/${RUNS_PER_MODEL}</b><span>${esc(q.a)}</span></li>
+    ${other > 0 ? `<li><b>${other}/${RUNS_PER_MODEL}</b><span>${esc(q.alt)}</span></li>` : ""}
   </ul>`;
 }
 
+/* ------------------------------------------------------------
+   RENDER: builds the participant screen (left side).
+   It is called again after every click, so the screen always
+   matches the current state.
+   ------------------------------------------------------------ */
 function render() {
   const q = QUESTIONS[state.idx];
+
+  // Top bar: "Question X of Y" and the progress blocks
   $("qcount").textContent = `Question ${state.idx + 1} of ${QUESTIONS.length}`;
   $("progress").innerHTML = QUESTIONS.map((_, i) => `<span class="${i < state.idx ? "done" : i === state.idx ? "now" : ""}"></span>`).join("");
 
   const score = overall(q);
-  const conf = state.cond === "confidence";
+  const totalRuns = Object.keys(q.models).length * RUNS_PER_MODEL;
+  const agreeRuns = Object.values(q.models).reduce((a, b) => a + b, 0);
+  const conf = state.cond === "confidence"; // true = show the confidence score
+
+  // One row per model (name, bar, percentage)
   const modelRows = Object.entries(q.models).map(([name, n]) => `
-    <button type="button" class="model${state.pinned === name ? " active" : ""}" data-model="${esc(name)}" aria-label="${esc(name)}: ${n * 5}%">
-      <span>${esc(name)}</span><span class="meter"><i style="width:${n * 5}%"></i></span><span class="pct">${n * 5}%</span>
+    <button type="button" class="model${state.pinned === name ? " active" : ""}" data-model="${esc(name)}" aria-label="${esc(name)}: ${modelPct(n)}%">
+      <span>${esc(name)}</span><span class="meter"><i style="width:${modelPct(n)}%"></i></span><span class="pct">${modelPct(n)}%</span>
     </button>`).join("");
 
   const decided = state.decided !== null;
+
+  // The HTML of the participant screen.
+  // Parts with ${conf ? `...` : ""} are only shown in the confidence condition.
   $("screen").innerHTML = `
     <h2 class="question">${esc(q.q)}</h2>
     <div class="bubble">
@@ -278,7 +447,8 @@ function render() {
             <span class="conf-num">${score}%</span>
             <span class="meter" aria-hidden="true"><i style="width:${score}%"></i></span>
           </div>
-          <span class="conf-cap">${score} of 100 answers from 5 AI models agree with this answer.</span>
+          <!-- EDIT: caption under the confidence score -->
+          <span class="conf-cap">${agreeRuns} of ${totalRuns} answers from ${Object.keys(q.models).length} AI models agree with this answer.</span>
           <button type="button" class="linkbtn" id="toggle-details" aria-expanded="${state.details}" aria-controls="details"><span class="chev" aria-hidden="true">›</span> ${state.details ? "Hide details" : "Show details"}</button>
           <div class="details" id="details" ${state.details ? "" : "hidden"}>
             ${modelRows}
@@ -299,16 +469,21 @@ function render() {
       <span>Your decision is recorded: <strong>${state.decided === "accept" ? "accepted" : "declined"}</strong>.</span>
       <button type="button" class="btn" id="next">${state.idx < QUESTIONS.length - 1 ? "Next question" : "Start again"}</button>
     </div>` : `
+    <!-- EDIT: BUTTON TEXT -->
     <div class="actions">
       <button type="button" class="btn accept" id="accept">Accept answer</button>
       <button type="button" class="btn decline" id="decline">Decline answer</button>
       <button type="button" class="btn fact" id="fact" aria-expanded="${state.fact}">${state.fact ? "Fact-check opened" : "Fact-check"}</button>
     </div>`}
   `;
-  bind();
+  bind(); // connect the buttons to their actions
 }
 
+/* ------------------------------------------------------------
+   BIND: tells each button what to do when clicked or hovered.
+   ------------------------------------------------------------ */
 function bind() {
+  // "Show details" / "Hide details"
   const t = $("toggle-details");
   if (t) t.addEventListener("click", () => {
     state.details = !state.details;
@@ -316,20 +491,24 @@ function bind() {
     render();
   });
 
+  // MOUSE TRACKING on each model row
   document.querySelectorAll(".model").forEach(btn => {
     const name = btn.dataset.model;
+    // Mouse enters the row: start the timer and show its answers
     const enter = () => { hoverStart[name] = performance.now(); showPeek(name); };
+    // Mouse leaves the row: calculate how long it stayed, and log it if long enough
     const leave = () => {
       if (hoverStart[name] == null) return;
       const d = (performance.now() - hoverStart[name]) / 1000;
       hoverStart[name] = null;
-      if (d >= 0.3) { state.hovered.add(name); logEvent(`Hovered ${name} for ${d.toFixed(1)} s`); }
+      if (d >= HOVER_MIN_SECONDS) { state.hovered.add(name); logEvent(`Hovered ${name} for ${d.toFixed(1)} s`); }
       showPeek(state.pinned);
     };
     btn.addEventListener("mouseenter", enter);
     btn.addEventListener("mouseleave", leave);
-    btn.addEventListener("focus", enter);
+    btn.addEventListener("focus", enter);   // same for keyboard users (Tab key)
     btn.addEventListener("blur", leave);
+    // Clicking a model "pins" it, so its answers stay visible (useful on touch screens)
     btn.addEventListener("click", () => {
       state.pinned = state.pinned === name ? null : name;
       document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === state.pinned));
@@ -337,6 +516,7 @@ function bind() {
     });
   });
 
+  // Fact-check button: opens the article (only logged the first time)
   const f = $("fact");
   if (f) f.addEventListener("click", () => {
     if (state.fact) return;
@@ -344,18 +524,27 @@ function bind() {
     logEvent("Opened fact-check article");
     render();
   });
+
+  // Accept, Decline and Next buttons
   const a = $("accept"); if (a) a.addEventListener("click", () => decide("accept"));
   const d = $("decline"); if (d) d.addEventListener("click", () => decide("decline"));
   const n = $("next"); if (n) n.addEventListener("click", next);
 }
 
+// Updates only the peek box (without redrawing the whole screen)
 function showPeek(name) { const p = $("peek"); if (p) p.innerHTML = peekHTML(name); }
 
+/* ------------------------------------------------------------
+   DECIDE: runs when the participant clicks Accept or Decline.
+   Saves one result row for this question.
+   In the real study, this row is what you SAVE per trial.
+   ------------------------------------------------------------ */
 function decide(choice) {
   const q = QUESTIONS[state.idx];
   const t = now();
   state.decided = choice;
   logEvent(`Decision: ${choice === "accept" ? "accepted" : "declined"} (${t.toFixed(1)} s)`);
+  // Appropriate = accepting a correct answer OR declining an incorrect one
   const appropriate = (choice === "accept") === q.correct;
   state.results.push({
     q: state.idx + 1, cond: state.cond, correct: q.correct, choice,
@@ -367,16 +556,24 @@ function decide(choice) {
   render();
 }
 
+// Go to the next question (after the last one it starts again at question 1)
 function next() {
   state.idx = (state.idx + 1) % QUESTIONS.length;
   startTrial();
 }
 
+// Helper: turns a count into a percentage text, e.g. pct(3, 4) → "75%"
 function pct(n, d) { return d ? Math.round((n / d) * 100) + "%" : "–"; }
 
+/* ------------------------------------------------------------
+   RESULTS: fills the table and the measure tiles on the right.
+   These are the same measures as in your thesis design.
+   ------------------------------------------------------------ */
 function renderResults() {
   const r = state.results;
   if (!r.length) return;
+
+  // One table row per answered question
   $("rows").innerHTML = r.map(x => `<tr>
     <td>${x.q}</td><td>${x.cond}</td>
     <td>${x.correct ? "correct" : "incorrect"}</td>
@@ -388,10 +585,12 @@ function renderResults() {
 
   const acc = r.filter(x => x.choice === "accept").length;
   const cor = r.filter(x => x.correct), inc = r.filter(x => !x.correct);
-  const accCor = cor.filter(x => x.choice === "accept").length / (cor.length || 1);
-  const accInc = inc.filter(x => x.choice === "accept").length / (inc.length || 1);
+  const accCor = cor.filter(x => x.choice === "accept").length / (cor.length || 1); // accept rate on correct answers
+  const accInc = inc.filter(x => x.choice === "accept").length / (inc.length || 1); // accept rate on incorrect answers
   const confTrials = r.filter(x => x.cond === "confidence");
+  // Trust calibration = accept rate (correct) minus accept rate (incorrect), in percentage points
   const calib = cor.length && inc.length ? Math.round((accCor - accInc) * 100) + " pts" : "needs both";
+
   $("measures").innerHTML = [
     [pct(acc, r.length), "Accept rate"],
     [pct(r.length - acc, r.length), "Decline rate"],
@@ -402,15 +601,21 @@ function renderResults() {
   ].map(([v, l]) => `<div class="measure"><b>${v}</b><span>${l}</span></div>`).join("");
 }
 
+/* ------------------------------------------------------------
+   CONDITION SWITCH (Confidence / Baseline buttons in the header)
+   ------------------------------------------------------------ */
 function setCond(c) {
   state.cond = c;
   $("c-conf").setAttribute("aria-pressed", c === "confidence");
   $("c-base").setAttribute("aria-pressed", c === "baseline");
-  startTrial();
+  startTrial(); // restart the current question in the new condition
 }
 $("c-conf").addEventListener("click", () => setCond("confidence"));
 $("c-base").addEventListener("click", () => setCond("baseline"));
 
+/* ------------------------------------------------------------
+   START: what happens when the page loads
+   ------------------------------------------------------------ */
 $("measures").innerHTML = ["Accept rate", "Decline rate", "Fact-check rate", "Detail rate", "Trust calibration", "Accuracy"]
   .map(l => `<div class="measure"><b>–</b><span>${l}</span></div>`).join("");
 startTrial();
