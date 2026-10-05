@@ -1,0 +1,6 @@
+# Participant data — never commit this to GitHub
+data/
+
+# Python
+__pycache__/
+*.pyc

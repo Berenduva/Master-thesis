@@ -1,14 +1,40 @@
 <!doctype html>
+<!--
+  CONFIDENCE SCORE STUDY — participant app
+  =========================================
+  Master's thesis, Berend de Vries (University of Amsterdam)
+
+  Flow (one participant, one sitting):
+    consent → block 1 intro → block 1 questions
+            → block 2 intro → block 2 questions → debrief
+
+  The questionnaires (GAAIS-10, Jian trust scale, final questions) are done
+  separately in Qualtrics, not in this app.
+
+  Files:
+    index.html        this file: layout, styling and all study logic
+    study-config.js   all content: questions, consent and debrief texts
+    server.py         local Python server that serves this page and writes the CSV files
+
+  Run `python server.py` and open http://localhost:8000.
+  Researcher URL options: ?pid=P012  ?group=1..4  ?debug=1  (see server.py)
+
+  If the page cannot reach server.py (e.g. opened as a file or from GitHub Pages)
+  it still runs, shows a red "not saving" banner, and offers a backup download
+  at the end so no data is lost.
+-->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Confidence Study Prototype</title>
+<title>AI Answers Study</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: participant screen (left) beside a researcher log (right); stacks on narrow screens */
+/* ===========================================================================
+   DESIGN TOKENS — colours and fonts in one place; dark mode follows the OS
+   =========================================================================== */
 :root {
   --bg: #eef1f5;
   --surface: #ffffff;
@@ -45,50 +71,74 @@
   --bad: #f08a83; --bad-soft: #3b2220; --warn-soft: #3a3020; --log-bg: #0b0f15; --log-fg: #d6deea; --log-dim: #7b889c;
   color-scheme: dark;
 }
+
+/* ===========================================================================
+   PAGE LAYOUT — one centred card; in debug mode a researcher log sits beside it
+   =========================================================================== */
 * { box-sizing: border-box; }
-body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; padding-inline: 16px; padding-block: 20px 40px; }
-.wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 16px; line-height: 1.55; padding: 20px 16px 48px; }
+.layout { max-width: 760px; margin: 0 auto; display: grid; gap: 16px; }
+body.debug .layout { max-width: 1240px; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); align-items: start; }
+@media (max-width: 900px) { body.debug .layout { grid-template-columns: minmax(0, 1fr); } }
 
-header.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
-header.top h1 { font-family: var(--f-display); font-weight: 600; font-size: 1.7rem; margin: 0; line-height: 1.15; text-wrap: balance; }
-header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
-.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
-.seg button { border: 0; background: transparent; color: var(--muted); font: 600 0.85rem var(--f-body); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
-.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+.banner { max-width: 760px; margin: 0 auto 12px; padding: 10px 14px; border-radius: 8px; background: var(--bad-soft); color: var(--bad); font-weight: 600; font-size: 0.9rem; }
+body.debug .banner { max-width: 1240px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.card-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 0.85rem; color: var(--muted); }
+.bar { flex: 1; max-width: 220px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.card-body { padding: 24px 22px 28px; display: flex; flex-direction: column; gap: 18px; }
+.card-foot { padding: 0 22px 16px; text-align: right; }
+
+h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+.prose { max-width: 66ch; }
+.prose h3 { font-size: 1rem; margin: 18px 0 4px; }
+.prose p, .prose ul { margin: 0 0 10px; }
+.prose ul { padding-left: 20px; }
 .label-sm { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+.muted { color: var(--muted); }
+.error { color: var(--bad); font-weight: 600; font-size: 0.9rem; }
 
-.grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+/* ---- Buttons ------------------------------------------------------------- */
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 0.95rem var(--f-body); padding: 10px 18px; border-radius: 8px; cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--fg); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.accept { background: var(--good-soft); border-color: var(--good); color: var(--good); }
+.btn.decline { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+.btn.fact[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.linkbtn { border: 0; background: none; color: var(--accent); font: 600 0.88rem var(--f-body); padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.linkbtn.quiet { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-decoration: underline; }
+.linkbtn .chev { transition: transform .2s; display: inline-block; }
+.linkbtn[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.btn:focus-visible, .linkbtn:focus-visible, .model:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* Participant screen */
-.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
-.screen-bar { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface-2); font-size: 0.85rem; color: var(--muted); }
-.progress { display: flex; gap: 4px; }
-.progress span { width: 22px; height: 5px; border-radius: 3px; background: var(--line); }
-.progress span.done { background: var(--accent); }
-.progress span.now { background: var(--fg); }
-.screen-body { padding: 22px 20px 24px; display: flex; flex-direction: column; gap: 18px; }
+/* ---- Consent checkboxes -------------------------------------------------- */
+.checks { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.checks label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.checks input { margin-top: 5px; width: 17px; height: 17px; flex: none; accent-color: var(--accent); }
 
-.question { font-family: var(--f-display); font-size: 1.35rem; font-weight: 500; line-height: 1.3; margin: 0; text-wrap: balance; }
+/* ===========================================================================
+   QUESTION SCREEN (kept from the prototype)
+   =========================================================================== */
+.question { font-family: var(--f-display); font-size: 1.4rem; font-weight: 500; line-height: 1.3; margin: 0; text-wrap: balance; }
 .bubble { display: flex; gap: 12px; align-items: flex-start; }
 .avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font: 700 0.75rem var(--f-body); letter-spacing: 0.04em; }
 .answer { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px var(--radius) var(--radius) var(--radius); padding: 12px 14px; min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 12px; }
-.answer p { margin: 0; font-size: 1.02rem; }
+.answer p { margin: 0; font-size: 1.04rem; }
 
+/* Confidence score: overall number + meter, expandable per-model details */
 .conf { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .conf-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .conf-num { font: 600 1.25rem var(--f-mono); font-variant-numeric: tabular-nums; }
 .meter { flex: 1; min-width: 120px; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
-.conf-cap { font-size: 0.82rem; color: var(--muted); }
-.linkbtn { align-self: flex-start; border: 0; background: none; color: var(--accent); font: 600 0.88rem var(--f-body); padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-.linkbtn .chev { transition: transform .2s; display: inline-block; }
-.linkbtn[aria-expanded="true"] .chev { transform: rotate(90deg); }
-
+.conf-cap { font-size: 0.84rem; color: var(--muted); }
 .details { display: flex; flex-direction: column; gap: 6px; }
 .model { display: grid; grid-template-columns: 82px minmax(0,1fr) 48px; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid transparent; background: transparent; color: var(--fg); font: 500 0.88rem var(--f-body); padding: 6px 8px; border-radius: 8px; cursor: default; }
-.model:hover, .model:focus-visible, .model.active { background: var(--accent-soft); border-color: var(--line); outline: none; }
+.model:hover, .model.active { background: var(--accent-soft); border-color: var(--line); }
 .model .pct { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .model .meter { height: 6px; min-width: 0; }
 .peek { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 0.86rem; min-height: 74px; }
@@ -99,172 +149,397 @@ header.top p { margin: 4px 0 0; color: var(--muted); max-width: 62ch; }
 .peek li b { font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 .peek li.match span { font-weight: 600; }
 
-.actions { display: flex; flex-wrap: wrap; gap: 10px; }
-.btn { border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 600 0.95rem var(--f-body); padding: 10px 18px; border-radius: 8px; cursor: pointer; }
-.btn:hover:not(:disabled) { border-color: var(--fg); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn.accept { background: var(--good-soft); border-color: var(--good); color: var(--good); }
-.btn.decline { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
-.btn.fact[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-.btn:focus-visible, .linkbtn:focus-visible, .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
+/* Fact-check article */
 .article { border-left: 3px solid var(--accent); background: var(--surface-2); padding: 12px 14px; border-radius: 0 8px 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .article h3 { font-family: var(--f-display); font-weight: 600; font-size: 1.08rem; margin: 0; }
-.article p { margin: 0; font-size: 0.92rem; max-width: 65ch; }
+.article p { margin: 0; font-size: 0.94rem; max-width: 65ch; }
 .article .src { font-size: 0.78rem; color: var(--muted); }
 
-.done-msg { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: var(--warn-soft); border-radius: 8px; padding: 10px 14px; font-size: 0.92rem; }
+/* Debrief list of incorrect answers */
+.wrong { display: flex; flex-direction: column; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.wrong li { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; font-size: 0.92rem; }
+.wrong s { color: var(--bad); }
+.pidbox { font: 600 1.1rem var(--f-mono); background: var(--surface-2); border-radius: 8px; padding: 8px 12px; display: inline-block; }
 
-/* Researcher view */
-.research { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.panel h2 { margin: 0; font-size: 0.95rem; }
-.panel p.note { margin: 0; font-size: 0.82rem; color: var(--muted); }
-.log { background: var(--log-bg); color: var(--log-fg); border-radius: 8px; padding: 10px 12px; font: 0.8rem/1.6 var(--f-mono); height: 260px; overflow-y: auto; }
-.log div { display: grid; grid-template-columns: 58px minmax(0,1fr); gap: 8px; }
-.log .t { color: var(--log-dim); font-variant-numeric: tabular-nums; text-align: right; }
-.log .empty { color: var(--log-dim); display: block; }
-.tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
-th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-th { color: var(--muted); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.74rem; font-weight: 600; }
-.pill.ok { background: var(--good-soft); color: var(--good); }
-.pill.no { background: var(--bad-soft); color: var(--bad); }
-.measures { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
-.measure { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
-.measure b { display: block; font: 600 1.1rem var(--f-mono); font-variant-numeric: tabular-nums; }
-.measure span { font-size: 0.74rem; color: var(--muted); }
-.footnote { font-size: 0.8rem; color: var(--muted); max-width: 90ch; }
-@media (prefers-reduced-motion: reduce) { .linkbtn .chev { transition: none; } }
+.overlay { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: grid; place-items: center; padding: 16px; z-index: 10; }
+.overlay[hidden] { display: none; }
+.overlay .card { max-width: 480px; }
+
+/* ===========================================================================
+   RESEARCHER DEBUG PANEL (?debug=1)
+   =========================================================================== */
+.debug-panel { position: sticky; top: 16px; display: flex; flex-direction: column; gap: 10px; background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; padding: 14px 16px; min-width: 0; }
+.debug-panel h2 { margin: 0; font-size: 0.95rem; }
+.debug-panel dl { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 2px 10px; margin: 0; font-size: 0.8rem; }
+.debug-panel dt { color: var(--muted); }
+.debug-panel dd { margin: 0; font-family: var(--f-mono); overflow-wrap: anywhere; }
+.log { background: var(--log-bg); color: var(--log-fg); border-radius: 8px; padding: 10px 12px; font: 0.76rem/1.55 var(--f-mono); height: 340px; overflow-y: auto; }
+.log div { display: grid; grid-template-columns: 56px minmax(0,1fr); gap: 8px; }
+.log .t { color: var(--log-dim); text-align: right; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .linkbtn .chev, .bar i { transition: none; } }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <header class="top">
-    <div>
-      <h1>Confidence score study: question screen</h1>
-      <p>Clickable mock-up with example questions. The left side is what a participant sees; the right side shows what the app logs.</p>
+<div class="banner" id="banner" hidden></div>
+
+<div class="layout">
+  <main class="card" aria-live="polite">
+    <div class="card-bar">
+      <span id="step-label">Welcome</span>
+      <span class="bar" aria-hidden="true"><i id="step-bar" style="width:0%"></i></span>
     </div>
-    <div class="controls">
-      <span class="label-sm">Condition</span>
-      <div class="seg" role="group" aria-label="Condition">
-        <button type="button" id="c-conf" aria-pressed="true">Confidence</button>
-        <button type="button" id="c-base" aria-pressed="false">Baseline</button>
-      </div>
+    <div class="card-body" id="screen"><p class="muted">Loading…</p></div>
+    <div class="card-foot" id="foot"></div>
+  </main>
+
+  <aside class="debug-panel" id="debug" hidden aria-label="Researcher debug panel">
+    <h2>Researcher view</h2>
+    <dl id="debug-info"></dl>
+    <div class="actions">
+      <button type="button" class="btn" id="dbg-skip">Skip rest of block</button>
     </div>
-  </header>
-
-  <div class="grid">
-    <section class="screen" aria-label="Participant screen">
-      <div class="screen-bar">
-        <span id="qcount">Question 1 of 3</span>
-        <div class="progress" id="progress" aria-hidden="true"></div>
-      </div>
-      <div class="screen-body" id="screen"></div>
-    </section>
-
-    <aside class="research" aria-label="Researcher view">
-      <div class="panel">
-        <h2>Event log (current question)</h2>
-        <p class="note">Hovers count only after 300 ms on a model. Times are seconds since the question appeared.</p>
-        <div class="log" id="log" aria-live="polite"></div>
-      </div>
-      <div class="panel">
-        <h2>Measures so far</h2>
-        <div class="measures" id="measures"></div>
-        <div class="tablewrap">
-          <table>
-            <thead><tr><th>Q</th><th>Condition</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Fact-check</th><th>Time</th><th>Appropriate</th></tr></thead>
-            <tbody id="rows"><tr><td colspan="9" style="color:var(--muted)">No decisions yet. Make a choice on the left.</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </aside>
-  </div>
-
-  <p class="footnote">Example data only. Each model was asked the question 20 times, so per-model scores move in steps of 5%. The overall score is the share of all 100 answers that agree with the answer shown. In the baseline condition there is no score and no details; the fact-check shows only the news article.</p>
+    <div class="log" id="debug-log"></div>
+  </aside>
 </div>
 
+<!-- "Stop the study" confirmation (overlay, so the current screen stays intact) -->
+<div class="overlay" id="overlay" hidden>
+  <div class="card card-body" role="dialog" aria-modal="true" aria-labelledby="stop-title">
+    <h2 class="title" id="stop-title">Do you want to stop the study?</h2>
+    <p class="prose">That is completely fine. Your answers so far will be kept, unless you ask the researcher to remove them.</p>
+    <div class="actions">
+      <button type="button" class="btn" id="cont">No, continue</button>
+      <button type="button" class="btn decline" id="quit">Yes, stop the study</button>
+    </div>
+  </div>
+</div>
+
+<script src="study-config.js"></script>
 <script>
-const QUESTIONS = [
-  {
-    q: "How many member states does the European Union have?",
-    a: "The European Union has 27 member states.",
-    correct: true,
-    alt: "28 member states",
-    models: { ChatGPT: 20, Claude: 20, Gemini: 19, Copilot: 20, Grok: 18 },
-    article: { title: "EU membership after Brexit", src: "Example article", text: "Since the United Kingdom left on 31 January 2020, the European Union has consisted of 27 member states. Several countries, including Ukraine and Moldova, are candidates for membership." }
-  },
-  {
-    q: "What is the minimum voting age for national elections in the Netherlands?",
-    a: "You can vote in Dutch national elections from the age of 18.",
-    correct: true,
-    alt: "16 years",
-    models: { ChatGPT: 13, Claude: 18, Gemini: 10, Copilot: 16, Grok: 2 },
-    article: { title: "Who can vote in the Netherlands?", src: "Example article", text: "Dutch citizens aged 18 or older on election day may vote for the House of Representatives. Proposals to lower the voting age to 16 have been discussed, but have not been adopted." }
-  },
-  {
-    q: "In which city does the Dutch government have its seat?",
-    a: "The Dutch government has its seat in Amsterdam.",
-    correct: false,
-    alt: "The Hague",
-    models: { ChatGPT: 3, Claude: 1, Gemini: 6, Copilot: 4, Grok: 9 },
-    article: { title: "Capital versus seat of government", src: "Example article", text: "Amsterdam is the constitutional capital of the Netherlands, but the government, parliament and most ministries are located in The Hague." }
-  }
+"use strict";
+
+/* ===========================================================================
+   0. HELPERS
+   =========================================================================== */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const params = new URLSearchParams(location.search);
+const DEBUG = params.get("debug") === "1";
+
+/** Fisher–Yates shuffle (returns a new array). */
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+
+/** Overall confidence: share of all model answers that agree with the shown answer (0–100). */
+function overallConfidence(q) {
+  const counts = Object.values(q.models);
+  const total = counts.reduce((a, b) => a + b, 0);
+  return Math.round((total / (counts.length * STUDY.answersPerModel)) * 100);
+}
+const modelPct = (n) => Math.round((n / STUDY.answersPerModel) * 100);
+
+/* ===========================================================================
+   1. SESSION STATE
+   ---------------------------------------------------------------------------
+   S holds everything about the current participant. `ctx` is the "where are
+   we" information that is attached to every logged event.
+   =========================================================================== */
+const S = {
+  pid: null, session_id: null, group: null,
+  blocks: [],            // [{condition: "baseline"|"confidence", set: "A"|"B"}, …] from the server
+  online: true,          // false when server.py could not be reached
+  t0: performance.now(), // session start (for t_session_ms)
+  step: 0,               // index into FLOW
+  shownQuestions: []     // every question shown, for the debrief list
+};
+const ctx = { phase: "consent", block: "", condition: "", question_set: "", trial: "", question_id: "", ai_correct: "", trialStart: null };
+
+/* The study flow. Each step is rendered by the function with the same name in SCREENS. */
+const FLOW = [
+  { id: "consent",  label: "Welcome" },
+  { id: "intro",    label: "Part 1 of 2 · Instructions", block: 0 },
+  { id: "trials",   label: "Part 1 of 2",                block: 0 },
+  { id: "intro",    label: "Part 2 of 2 · Instructions", block: 1 },
+  { id: "trials",   label: "Part 2 of 2",                block: 1 },
+  { id: "debrief",  label: "Thank you" }
 ];
 
-const state = { idx: 0, cond: "confidence", t0: 0, events: [], details: false, fact: false, hovered: new Set(), decided: null, results: [], pinned: null };
-const hoverStart = {};
-const $ = (id) => document.getElementById(id);
-const now = () => (performance.now() - state.t0) / 1000;
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+/* ===========================================================================
+   2. DATA LOGGING
+   ---------------------------------------------------------------------------
+   Everything is sent to server.py through an "outbox": requests are sent in
+   order, and if one fails it is retried every 3 s, so a short network or
+   server hiccup never loses data. Events are batched (sent at most once per
+   second). A full copy is also kept in memory (BACKUP) for the download
+   fallback on the last screen.
+   =========================================================================== */
+const BACKUP = { session: null, events: [], trials: [], responses: [] };
 
-function overall(q) { return Object.values(q.models).reduce((a, b) => a + b, 0); }
+const Outbox = {
+  items: [], busy: false, failures: 0,
+  add(route, body) { this.items.push({ route, body }); this.flush(); },
+  async flush() {
+    if (this.busy || !S.online) return;
+    this.busy = true;
+    while (this.items.length) {
+      const it = this.items[0];
+      try {
+        const res = await fetch(it.route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(it.body) });
+        if (!res.ok) throw new Error(res.status);
+        this.items.shift();
+        this.failures = 0;
+      } catch (e) {
+        this.failures++;
+        showBanner(`Connection to the study server lost — retrying (${this.items.length} unsent). Please tell the researcher.`);
+        this.busy = false;
+        setTimeout(() => this.flush(), 3000);
+        return;
+      }
+    }
+    this.busy = false;
+    if (S.online) hideBanner();
+  },
+  /** Last-chance send when the tab is closed (sendBeacon survives page unload). */
+  beaconAll() {
+    if (!S.online || !navigator.sendBeacon) return;
+    flushEvents();
+    for (const it of this.items) navigator.sendBeacon(it.route, new Blob([JSON.stringify(it.body)], { type: "application/json" }));
+    this.items = [];
+  }
+};
 
-function logEvent(text) {
-  state.events.push({ t: now(), text });
-  renderLog();
+let eventBuffer = [];
+let eventTimer = null;
+
+/**
+ * Log one event. Every row gets the current context (phase, block, condition,
+ * trial, question) plus timing:
+ *   t_session_ms  ms since the page loaded
+ *   t_trial_ms    ms since the current question appeared (empty outside trials)
+ */
+function logEvent(event, { target = "", value = "", duration_ms = "" } = {}, urgent = false) {
+  const t = performance.now();
+  const row = {
+    session_id: S.session_id,
+    client_time: new Date().toISOString(),
+    t_session_ms: Math.round(t - S.t0),
+    phase: ctx.phase, block: ctx.block, condition: ctx.condition, question_set: ctx.question_set,
+    trial: ctx.trial, question_id: ctx.question_id, ai_correct: ctx.ai_correct,
+    t_trial_ms: ctx.trialStart != null ? Math.round(t - ctx.trialStart) : "",
+    event, target, value, duration_ms: duration_ms === "" ? "" : Math.round(duration_ms)
+  };
+  eventBuffer.push(row);
+  BACKUP.events.push(row);
+  debugLog(row);
+  if (urgent) flushEvents();
+  else if (!eventTimer) eventTimer = setTimeout(flushEvents, 1000);
 }
 
-function renderLog() {
-  const el = $("log");
-  if (!state.events.length) { el.innerHTML = '<span class="empty">Waiting for the question…</span>'; return; }
-  el.innerHTML = state.events.map(e => `<div><span class="t">${e.t.toFixed(1)} s</span><span>${esc(e.text)}</span></div>`).join("");
-  el.scrollTop = el.scrollHeight;
+function flushEvents() {
+  clearTimeout(eventTimer); eventTimer = null;
+  if (!eventBuffer.length || !S.pid) return;
+  Outbox.add("/api/events", { pid: S.pid, events: eventBuffer.splice(0) });
 }
 
-function startTrial() {
-  state.t0 = performance.now();
-  state.events = []; state.details = false; state.fact = false; state.hovered = new Set(); state.decided = null; state.pinned = null;
-  logEvent(`Question ${state.idx + 1} shown (${state.cond} condition, AI answer ${QUESTIONS[state.idx].correct ? "correct" : "incorrect"})`);
-  render();
+function saveTrial(row) {
+  flushEvents();                       // keep events before the trial row in the files
+  BACKUP.trials.push(row);
+  Outbox.add("/api/trial", { pid: S.pid, trial: row });
 }
 
-function peekHTML(name) {
-  const q = QUESTIONS[state.idx];
-  if (!name) return '<span class="hint">Hover over a model to see the answers it gave.</span>';
-  const n = q.models[name];
-  return `<h4>${esc(name)}: ${n} of 20 answers agree</h4><ul>
-    <li class="match"><b>${n}/20</b><span>${esc(q.a)}</span></li>
-    ${20 - n > 0 ? `<li><b>${20 - n}/20</b><span>${esc(q.alt)}</span></li>` : ""}
-  </ul>`;
+function saveResponses(rows) {
+  flushEvents();
+  const full = rows.map(r => ({ session_id: S.session_id, ...r }));
+  BACKUP.responses.push(...full);
+  Outbox.add("/api/responses", { pid: S.pid, responses: full });
 }
 
-function render() {
-  const q = QUESTIONS[state.idx];
-  $("qcount").textContent = `Question ${state.idx + 1} of ${QUESTIONS.length}`;
-  $("progress").innerHTML = QUESTIONS.map((_, i) => `<span class="${i < state.idx ? "done" : i === state.idx ? "now" : ""}"></span>`).join("");
+function saveStatus(status) {
+  flushEvents();
+  Outbox.add("/api/status", { pid: S.pid, status, session: BACKUP.session });
+}
 
-  const score = overall(q);
-  const conf = state.cond === "confidence";
+function showBanner(text) { const b = $("banner"); b.textContent = text; b.hidden = false; }
+function hideBanner() { $("banner").hidden = true; }
+
+/* ===========================================================================
+   3. START-UP: ask the server for a participant ID and block order
+   =========================================================================== */
+async function init() {
+  if (DEBUG) { document.body.classList.add("debug"); $("debug").hidden = false; }
+  const req = { pid: params.get("pid") || "", group: params.get("group") || "", screen: `${screen.width}x${screen.height}` };
+  try {
+    const res = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    Object.assign(S, { pid: data.pid, session_id: data.session_id, group: data.group, blocks: data.blocks });
+    BACKUP.session = data;
+    if (data.pid_reused) showBanner(`Note for the researcher: participant ID ${data.pid} was used before. Data will be appended to the same files.`);
+  } catch (e) {
+    // Offline fallback: the study still works, data are kept for a download at the end.
+    S.online = false;
+    const g = Number(params.get("group")) || 1 + Math.floor(Math.random() * 4);
+    const groups = { 1: [["baseline","A"],["confidence","B"]], 2: [["confidence","A"],["baseline","B"]],
+                     3: [["baseline","B"],["confidence","A"]], 4: [["confidence","B"],["baseline","A"]] };
+    Object.assign(S, { pid: params.get("pid") || "LOCAL-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
+      session_id: new Date().toISOString(), group: g, blocks: groups[g].map(([condition, set]) => ({ condition, set })) });
+    BACKUP.session = { pid: S.pid, group: g, blocks: S.blocks, offline: true };
+    showBanner("Not connected to the study server — data are NOT being saved to CSV. Start the study with “python server.py”.");
+  }
+  logEvent("session_start", { value: `group ${S.group}`, target: navigator.userAgent }, true);
+  renderDebugInfo();
+  go(0);
+}
+
+/* ===========================================================================
+   4. NAVIGATION
+   =========================================================================== */
+function go(step) {
+  S.step = step;
+  const s = FLOW[step];
+  const blk = s.block != null ? S.blocks[s.block] : null;
+  Object.assign(ctx, { phase: s.id, block: blk ? s.block + 1 : "", condition: blk ? blk.condition : "",
+    question_set: blk ? blk.set : "", trial: "", question_id: "", ai_correct: "", trialStart: null });
+  $("step-label").textContent = s.label;
+  $("step-bar").style.width = `${Math.round((step / (FLOW.length - 1)) * 100)}%`;
+  $("foot").innerHTML = (s.id !== "consent" && s.id !== "debrief" && s.id !== "withdrawn")
+    ? `<button type="button" class="linkbtn quiet" id="stop">Stop the study</button>` : "";
+  if ($("stop")) $("stop").onclick = () => SCREENS.stopConfirm();
+  logEvent("screen_shown", { target: s.id }, true);
+  SCREENS[s.id](blk, s.block);
+  window.scrollTo(0, 0);
+  renderDebugInfo();
+}
+const nextStep = () => go(S.step + 1);
+
+/* ===========================================================================
+   5. SCREENS
+   =========================================================================== */
+const SCREENS = {
+
+  /* ---- Information + informed consent ----------------------------------- */
+  consent() {
+    $("screen").innerHTML = `
+      <h1>${esc(STUDY.title)}</h1>
+      <div class="prose">${TEXTS.consent}</div>
+      <div class="checks">
+        <span class="label-sm">Consent</span>
+        ${TEXTS.consentChecks.map((t, i) => `<label><input type="checkbox" data-i="${i}"> <span>${esc(t)}</span></label>`).join("")}
+      </div>
+      <div class="actions">
+        <button type="button" class="btn primary" id="agree" disabled>I agree, start the study</button>
+        <button type="button" class="btn" id="disagree">I do not want to take part</button>
+      </div>`;
+    const boxes = [...document.querySelectorAll(".checks input")];
+    boxes.forEach(b => b.addEventListener("change", () => { $("agree").disabled = !boxes.every(x => x.checked); }));
+    $("agree").onclick = () => {
+      saveResponses(TEXTS.consentChecks.map((t, i) => ({ instrument: "consent", item_id: `c${i + 1}`, item_text: t, value: 1 })));
+      logEvent("consent_given", {}, true);
+      nextStep();
+    };
+    $("disagree").onclick = () => { logEvent("consent_declined", {}, true); SCREENS.withdrawn("declined"); };
+  },
+
+  /* ---- Instructions before each block ------------------------------------ */
+  intro(blk, b) {
+    const n = QUESTIONS.filter(q => q.set === blk.set).length;
+    $("screen").innerHTML = `
+      <span class="label-sm">${b === 0 ? "First" : "Second"} set of questions · ${n} questions</span>
+      <h2 class="title">${blk.condition === "confidence" ? "This time, the AI shows a confidence score" : (b === 0 ? "How this works" : "This time, the AI shows only its answer")}</h2>
+      <div class="prose">${TEXTS.blockIntro[blk.condition]}</div>
+      <div class="actions"><button type="button" class="btn primary" id="go">Start</button></div>`;
+    $("go").onclick = nextStep;
+  },
+
+  /* ---- The question block ------------------------------------------------- */
+  trials(blk) {
+    // Question order is shuffled per participant; the order is visible in the logs (trial + question_id).
+    const list = shuffle(QUESTIONS.filter(q => q.set === blk.set));
+    runTrial(list, 0, blk);
+  },
+
+  /* ---- Debrief ------------------------------------------------------------ */
+  debrief() {
+    saveStatus("finished");
+    const wrong = S.shownQuestions.filter(q => !q.correct);
+
+    $("screen").innerHTML = `
+      <h1>Thank you!</h1>
+      <div class="prose">${TEXTS.debrief}</div>
+      ${wrong.length ? `<div><span class="label-sm">Incorrect AI answers in this study</span>
+        <ul class="wrong">${wrong.map(q => `<li><strong>${esc(q.q)}</strong><br>
+          AI answer: <s>${esc(q.a)}</s><br>Correct: ${esc(q.alt)}</li>`).join("")}</ul></div>` : ""}
+      <p>Your participant number: <span class="pidbox">${esc(S.pid)}</span></p>
+      ${STUDY.completionCode ? `<p>Completion code: <span class="pidbox">${esc(STUDY.completionCode)}</span></p>` : ""}
+      <p class="muted">You can close this window now.</p>
+      <div id="backup-slot"></div>`;
+    showBackupIfNeeded(!S.online);
+    // Re-check after the outbox has had a moment to send the last rows.
+    setTimeout(() => showBackupIfNeeded(Outbox.items.length > 0 || !S.online), 4000);
+    studyRunning = false;
+  },
+
+  /* ---- Stopping / not consenting ----------------------------------------- */
+  stopConfirm() {
+    // Shown as an overlay, so cancelling returns to exactly the same point (mid-question included).
+    logEvent("stop_clicked", {}, true);
+    const ov = $("overlay");
+    ov.hidden = false;
+    $("cont").focus();
+    $("cont").onclick = () => { ov.hidden = true; logEvent("stop_cancelled", {}, true); };
+    $("quit").onclick = () => { ov.hidden = true; SCREENS.withdrawn("withdrew"); };
+  },
+
+  withdrawn(status) {
+    skipBlock = null;
+    saveStatus(status);
+    studyRunning = false;
+    ctx.phase = "withdrawn";
+    $("step-label").textContent = "Study ended";
+    $("foot").innerHTML = "";
+    $("screen").innerHTML = `
+      <h2 class="title">${status === "declined" ? "No problem" : "The study has been stopped"}</h2>
+      <p class="prose">${status === "declined" ? "You have chosen not to take part. Nothing further will be recorded." :
+        `Thank you for your time. If you want your data removed, contact ${esc(STUDY.contactEmail)} and mention participant number <strong>${esc(S.pid)}</strong>.`}</p>
+      <p class="muted">You can close this window now.</p>
+      <div id="backup-slot"></div>`;
+    setTimeout(() => showBackupIfNeeded(Outbox.items.length > 0 || !S.online), 2000);
+  }
+};
+
+/* ===========================================================================
+   6. ONE TRIAL (question screen)
+   ---------------------------------------------------------------------------
+   Logged events per trial:
+     trial_shown, details_open / details_close, hover (every hover, with
+     duration; value "counted" if ≥ hoverThresholdMs), model_click,
+     factcheck_open, decision.
+   On the decision a summary row is written to Pxxx_trials.csv.
+   =========================================================================== */
+function runTrial(list, i, blk) {
+  if (i >= list.length) { nextStep(); return; }
+  const q = list[i];
+  const conf = blk.condition === "confidence";
+  const score = overallConfidence(q);
+  S.shownQuestions.push(q);
+
+  // Per-trial bookkeeping, turned into the summary row at the decision.
+  const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
+              factAt: null, pinned: null, activeHover: null, decided: false };
+
+  Object.assign(ctx, { phase: "trials", trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
+  $("step-label").textContent = `${FLOW[S.step].label} · Question ${i + 1} of ${list.length}`;
+  renderDebugInfo();
+
   const modelRows = Object.entries(q.models).map(([name, n]) => `
-    <button type="button" class="model${state.pinned === name ? " active" : ""}" data-model="${esc(name)}" aria-label="${esc(name)}: ${n * 5}%">
-      <span>${esc(name)}</span><span class="meter"><i style="width:${n * 5}%"></i></span><span class="pct">${n * 5}%</span>
+    <button type="button" class="model" data-model="${esc(name)}" aria-label="${esc(name)}: ${modelPct(n)}%">
+      <span>${esc(name)}</span><span class="meter"><i style="width:${modelPct(n)}%"></i></span><span class="pct">${modelPct(n)}%</span>
     </button>`).join("");
 
-  const decided = state.decided !== null;
   $("screen").innerHTML = `
     <h2 class="question">${esc(q.q)}</h2>
     <div class="bubble">
@@ -278,143 +553,182 @@ function render() {
             <span class="conf-num">${score}%</span>
             <span class="meter" aria-hidden="true"><i style="width:${score}%"></i></span>
           </div>
-          <span class="conf-cap">${score} of 100 answers from 5 AI models agree with this answer.</span>
-          <button type="button" class="linkbtn" id="toggle-details" aria-expanded="${state.details}" aria-controls="details"><span class="chev" aria-hidden="true">›</span> ${state.details ? "Hide details" : "Show details"}</button>
-          <div class="details" id="details" ${state.details ? "" : "hidden"}>
+          <span class="conf-cap">${score}% of the answers from ${Object.keys(q.models).length} AI models agree with this answer.</span>
+          <button type="button" class="linkbtn" id="toggle-details" aria-expanded="false" aria-controls="details"><span class="chev" aria-hidden="true">›</span> <span>Show details</span></button>
+          <div class="details" id="details" hidden>
             ${modelRows}
-            <div class="peek" id="peek">${peekHTML(state.pinned)}</div>
+            <div class="peek" id="peek">${peekHTML(q, null)}</div>
           </div>
         </div>` : ""}
       </div>
     </div>
-    ${state.fact ? `
-    <div class="article" id="article">
-      <span class="label-sm">Fact-check</span>
-      <h3>${esc(q.article.title)}</h3>
-      <p>${esc(q.article.text)}</p>
-      <span class="src">${esc(q.article.src)}</span>
-    </div>` : ""}
-    ${decided ? `
-    <div class="done-msg">
-      <span>Your decision is recorded: <strong>${state.decided === "accept" ? "accepted" : "declined"}</strong>.</span>
-      <button type="button" class="btn" id="next">${state.idx < QUESTIONS.length - 1 ? "Next question" : "Start again"}</button>
-    </div>` : `
+    <div id="article-slot"></div>
     <div class="actions">
       <button type="button" class="btn accept" id="accept">Accept answer</button>
       <button type="button" class="btn decline" id="decline">Decline answer</button>
-      <button type="button" class="btn fact" id="fact" aria-expanded="${state.fact}">${state.fact ? "Fact-check opened" : "Fact-check"}</button>
-    </div>`}
-  `;
-  bind();
-}
+      <button type="button" class="btn fact" id="fact" aria-expanded="false">Fact-check</button>
+    </div>`;
 
-function bind() {
-  const t = $("toggle-details");
-  if (t) t.addEventListener("click", () => {
-    state.details = !state.details;
-    logEvent(state.details ? "Opened details" : "Closed details");
-    render();
-  });
+  logEvent("trial_shown", { value: conf ? `confidence ${score}%` : "baseline" }, true);
 
+  /* -- Details toggle (DOM is updated in place so a running hover is not lost) -- */
+  const toggle = $("toggle-details");
+  if (toggle) toggle.onclick = () => {
+    const open = toggle.getAttribute("aria-expanded") !== "true";
+    if (!open) endHover();
+    toggle.setAttribute("aria-expanded", open);
+    toggle.lastElementChild.textContent = open ? "Hide details" : "Show details";
+    $("details").hidden = !open;
+    T.detailsToggles++;
+    if (open) T.detailsOpened = true;
+    logEvent(open ? "details_open" : "details_close");
+  };
+
+  /* -- Hover tracking on each model row ------------------------------------ */
+  function startHover(name) {
+    endHover();
+    T.activeHover = { name, start: performance.now() };
+    showPeek(q, name);
+  }
+  function endHover() {
+    const h = T.activeHover;
+    if (!h) return;
+    T.activeHover = null;
+    const d = performance.now() - h.start;
+    const counted = d >= STUDY.hoverThresholdMs;
+    if (counted) { T.hovers++; T.hovered.add(h.name); T.hoverTotal += d; }
+    logEvent("hover", { target: h.name, value: counted ? "counted" : "short", duration_ms: d });
+    showPeek(q, T.pinned);
+  }
   document.querySelectorAll(".model").forEach(btn => {
     const name = btn.dataset.model;
-    const enter = () => { hoverStart[name] = performance.now(); showPeek(name); };
-    const leave = () => {
-      if (hoverStart[name] == null) return;
-      const d = (performance.now() - hoverStart[name]) / 1000;
-      hoverStart[name] = null;
-      if (d >= 0.3) { state.hovered.add(name); logEvent(`Hovered ${name} for ${d.toFixed(1)} s`); }
-      showPeek(state.pinned);
-    };
-    btn.addEventListener("mouseenter", enter);
-    btn.addEventListener("mouseleave", leave);
-    btn.addEventListener("focus", enter);
-    btn.addEventListener("blur", leave);
-    btn.addEventListener("click", () => {
-      state.pinned = state.pinned === name ? null : name;
-      document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === state.pinned));
-      showPeek(state.pinned || name);
+    btn.addEventListener("mouseenter", () => startHover(name));
+    btn.addEventListener("mouseleave", endHover);
+    btn.addEventListener("focus", () => startHover(name));   // keyboard users
+    btn.addEventListener("blur", endHover);
+    btn.addEventListener("click", () => {                     // click pins a model (also works on touch screens)
+      T.pinned = T.pinned === name ? null : name;
+      document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === T.pinned));
+      showPeek(q, T.pinned || name);
+      logEvent("model_click", { target: name, value: T.pinned ? "pinned" : "unpinned" });
     });
   });
 
-  const f = $("fact");
-  if (f) f.addEventListener("click", () => {
-    if (state.fact) return;
-    state.fact = true;
-    logEvent("Opened fact-check article");
-    render();
-  });
-  const a = $("accept"); if (a) a.addEventListener("click", () => decide("accept"));
-  const d = $("decline"); if (d) d.addEventListener("click", () => decide("decline"));
-  const n = $("next"); if (n) n.addEventListener("click", next);
+  /* -- Fact-check: shows the article once; participant then still decides -- */
+  $("fact").onclick = () => {
+    if (T.factAt != null) return;
+    T.factAt = performance.now();
+    $("fact").setAttribute("aria-expanded", "true");
+    $("fact").textContent = "Fact-check opened";
+    $("article-slot").innerHTML = `
+      <div class="article">
+        <span class="label-sm">Fact-check</span>
+        <h3>${esc(q.article.title)}</h3>
+        <p>${esc(q.article.text)}</p>
+        <span class="src">${esc(q.article.src)}</span>
+      </div>`;
+    logEvent("factcheck_open", {}, true);
+  };
+
+  /* -- Decision ------------------------------------------------------------ */
+  const decide = (choice) => {
+    if (T.decided) return;            // guard against double clicks
+    T.decided = true;
+    endHover();
+    const t = performance.now();
+    const rt = t - ctx.trialStart;
+    logEvent("decision", { value: choice, duration_ms: rt }, true);
+    saveTrial({
+      session_id: S.session_id, group: S.group,
+      block: ctx.block, condition: blk.condition, question_set: blk.set,
+      trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0,
+      overall_confidence: score,                       // also stored in baseline (score existed, but was hidden)
+      decision: choice,
+      appropriate: (choice === "accept") === q.correct ? 1 : 0,
+      rt_ms: Math.round(rt),
+      details_opened: conf ? (T.detailsOpened ? 1 : 0) : "",
+      details_toggles: conf ? T.detailsToggles : "",
+      hover_count: conf ? T.hovers : "",
+      hovered_models: conf ? [...T.hovered].join("; ") : "",
+      hover_total_ms: conf ? Math.round(T.hoverTotal) : "",
+      factcheck_opened: T.factAt != null ? 1 : 0,
+      factcheck_rt_ms: T.factAt != null ? Math.round(T.factAt - ctx.trialStart) : "",
+      time_after_factcheck_ms: T.factAt != null ? Math.round(t - T.factAt) : ""
+    });
+    // No feedback on correctness (that would teach participants which answers are wrong).
+    $("screen").querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
+    setTimeout(() => runTrial(list, i + 1, blk), 350);
+  };
+  $("accept").onclick = () => decide("accept");
+  $("decline").onclick = () => decide("decline");
+
+  // Debug: let the researcher jump to the end of the block.
+  skipBlock = () => { logEvent("debug_skip_block", {}, true); nextStep(); };
 }
 
-function showPeek(name) { const p = $("peek"); if (p) p.innerHTML = peekHTML(name); }
+/** Text in the "peek" box below the model list. */
+function peekHTML(q, name) {
+  if (!name) return '<span class="hint">Point at a model to see the answers it gave.</span>';
+  const n = q.models[name], N = STUDY.answersPerModel;
+  return `<h4>${esc(name)}: ${n} of ${N} answers agree</h4><ul>
+    <li class="match"><b>${n}/${N}</b><span>${esc(q.a)}</span></li>
+    ${N - n > 0 ? `<li><b>${N - n}/${N}</b><span>${esc(q.alt)}</span></li>` : ""}
+  </ul>`;
+}
+function showPeek(q, name) { const p = $("peek"); if (p) p.innerHTML = peekHTML(q, name); }
 
-function decide(choice) {
-  const q = QUESTIONS[state.idx];
-  const t = now();
-  state.decided = choice;
-  logEvent(`Decision: ${choice === "accept" ? "accepted" : "declined"} (${t.toFixed(1)} s)`);
-  const appropriate = (choice === "accept") === q.correct;
-  state.results.push({
-    q: state.idx + 1, cond: state.cond, correct: q.correct, choice,
-    details: state.cond === "confidence" ? (state.events.some(e => e.text === "Opened details") ? "yes" : "no") : "n/a",
-    hovered: state.cond === "confidence" ? (state.hovered.size ? [...state.hovered].join(", ") : "none") : "n/a",
-    fact: state.fact ? "yes" : "no", time: t, appropriate
-  });
-  renderResults();
-  render();
+/* ===========================================================================
+   7. BACKUP DOWNLOAD (only shown when data could not be sent)
+   =========================================================================== */
+function showBackupIfNeeded(needed) {
+  const slot = $("backup-slot");
+  if (!slot || !needed || slot.innerHTML) return;
+  slot.innerHTML = `<p class="error">Some data could not be sent to the study server. Please ask the researcher before closing this window.</p>
+    <button type="button" class="btn" id="dl">Download data backup</button>`;
+  $("dl").onclick = () => {
+    const blob = new Blob([JSON.stringify(BACKUP, null, 1)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${S.pid}_backup.json`;
+    a.click();
+  };
 }
 
-function next() {
-  state.idx = (state.idx + 1) % QUESTIONS.length;
-  startTrial();
+/* ===========================================================================
+   8. RESEARCHER DEBUG PANEL (?debug=1)
+   =========================================================================== */
+let skipBlock = null;
+function renderDebugInfo() {
+  if (!DEBUG) return;
+  const b = S.blocks.map((x, i) => `${i + 1}: ${x.condition} / set ${x.set}`).join("<br>");
+  $("debug-info").innerHTML = `
+    <dt>Participant</dt><dd>${esc(S.pid)}</dd>
+    <dt>Group</dt><dd>${esc(S.group)}</dd>
+    <dt>Blocks</dt><dd>${b}</dd>
+    <dt>Server</dt><dd>${S.online ? "connected" : "OFFLINE"}</dd>
+    <dt>Step</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · trial ${ctx.trial} (${esc(ctx.question_id)}, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
 }
-
-function pct(n, d) { return d ? Math.round((n / d) * 100) + "%" : "–"; }
-
-function renderResults() {
-  const r = state.results;
-  if (!r.length) return;
-  $("rows").innerHTML = r.map(x => `<tr>
-    <td>${x.q}</td><td>${x.cond}</td>
-    <td>${x.correct ? "correct" : "incorrect"}</td>
-    <td>${x.choice === "accept" ? "accept" : "decline"}</td>
-    <td>${x.details}</td><td>${esc(x.hovered)}</td><td>${x.fact}</td>
-    <td>${x.time.toFixed(1)} s</td>
-    <td><span class="pill ${x.appropriate ? "ok" : "no"}">${x.appropriate ? "yes" : "no"}</span></td>
-  </tr>`).join("");
-
-  const acc = r.filter(x => x.choice === "accept").length;
-  const cor = r.filter(x => x.correct), inc = r.filter(x => !x.correct);
-  const accCor = cor.filter(x => x.choice === "accept").length / (cor.length || 1);
-  const accInc = inc.filter(x => x.choice === "accept").length / (inc.length || 1);
-  const confTrials = r.filter(x => x.cond === "confidence");
-  const calib = cor.length && inc.length ? Math.round((accCor - accInc) * 100) + " pts" : "needs both";
-  $("measures").innerHTML = [
-    [pct(acc, r.length), "Accept rate"],
-    [pct(r.length - acc, r.length), "Decline rate"],
-    [pct(r.filter(x => x.fact === "yes").length, r.length), "Fact-check rate"],
-    [pct(confTrials.filter(x => x.details === "yes").length, confTrials.length), "Detail rate"],
-    [calib, "Trust calibration"],
-    [pct(r.filter(x => x.appropriate).length, r.length), "Accuracy"]
-  ].map(([v, l]) => `<div class="measure"><b>${v}</b><span>${l}</span></div>`).join("");
+function debugLog(row) {
+  if (!DEBUG) return;
+  const el = $("debug-log");
+  const t = row.t_trial_ms !== "" ? (row.t_trial_ms / 1000).toFixed(1) + " s" : "–";
+  const extra = [row.target, row.value, row.duration_ms !== "" ? row.duration_ms + " ms" : ""].filter(Boolean).join(" · ");
+  el.insertAdjacentHTML("beforeend", `<div><span class="t">${t}</span><span>${esc(row.event)}${extra ? " — " + esc(extra) : ""}</span></div>`);
+  el.scrollTop = el.scrollHeight;
 }
+$("dbg-skip").onclick = () => { if (FLOW[S.step].id === "trials" && skipBlock) skipBlock(); };
 
-function setCond(c) {
-  state.cond = c;
-  $("c-conf").setAttribute("aria-pressed", c === "confidence");
-  $("c-base").setAttribute("aria-pressed", c === "baseline");
-  startTrial();
-}
-$("c-conf").addEventListener("click", () => setCond("confidence"));
-$("c-base").addEventListener("click", () => setCond("baseline"));
+/* ===========================================================================
+   9. PAGE LIFECYCLE
+   =========================================================================== */
+let studyRunning = true;
+// Warn before closing/reloading mid-study (a reload would start a new participant).
+window.addEventListener("beforeunload", (e) => { if (studyRunning && !DEBUG) { e.preventDefault(); e.returnValue = ""; } });
+// Log tab switches: leaving the tab may mean looking answers up elsewhere.
+document.addEventListener("visibilitychange", () => logEvent(document.hidden ? "tab_hidden" : "tab_visible", {}, true));
+window.addEventListener("pagehide", () => { logEvent("page_closed"); Outbox.beaconAll(); });
 
-$("measures").innerHTML = ["Accept rate", "Decline rate", "Fact-check rate", "Detail rate", "Trust calibration", "Accuracy"]
-  .map(l => `<div class="measure"><b>–</b><span>${l}</span></div>`).join("");
-startTrial();
+init();
 </script>
-
 </body>
 </html>
