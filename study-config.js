@@ -16,7 +16,8 @@ const STUDY = {
   researcher: "Berend de Vries",
   supervisor: "Katja Rogers",
   institution: "University of Amsterdam",
-  contactEmail: "Berend2000devries@gmail.com",       // TODO    // TODO
+  contactEmail: "[your UvA email address]",       // TODO
+  ethicsReference: "[ethics approval number]",    // TODO
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
 
@@ -26,6 +27,11 @@ const STUDY = {
 
   // Each model was asked every question this many times (ChainForge runs).
   answersPerModel: 20,
+
+  // "AI is thinking" animation before each answer, then the answer is typed out.
+  // Same for every question, so the delay never hints at whether an answer is right.
+  thinkingMs: 1500,      // how long the thinking dots show (ms)
+  typingMsPerChar: 25,   // typing speed (ms per character); 0 = show the answer at once
 
   // Hovers on a model shorter than this are logged but not counted as "looked at".
   hoverThresholdMs: 300
@@ -152,7 +158,7 @@ const TEXTS = {
     under a participant number and used only for this research.</p>
     <h3>Your rights</h3>
     <p>Participation is voluntary. You can stop at any moment without giving a reason, and you can ask for your data to
-    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}.</p>`,
+    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}. Ethics reference: ${STUDY.ethicsReference}.</p>`,
 
   // One checkbox for consent (stored as item "c1" in Pxxx_responses.csv).
   consentChecks: [

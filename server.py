@@ -71,7 +71,7 @@ EVENT_FIELDS = [
 ]
 TRIAL_FIELDS = [
     "pid", "session_id", "condition", "trial", "question_id", "ai_correct", "overall_confidence",
-    "decision", "appropriate", "rt_ms",
+    "decision", "appropriate", "answer_ready_ms", "rt_ms",
     "details_opened", "details_toggles",
     "hover_count", "hovered_models", "hover_total_ms",
     "factcheck_opened", "factcheck_rt_ms", "time_after_factcheck_ms",
