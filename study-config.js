@@ -16,7 +16,7 @@ const STUDY = {
   researcher: "Berend de Vries",
   supervisor: "Katja Rogers",
   institution: "University of Amsterdam",
-  contactEmail: "[your UvA email address]",       // TODO
+  contactEmail: "berend.de.vries@student.uva.nl",
   ethicsReference: "[ethics approval number]",    // TODO
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
