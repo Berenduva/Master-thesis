@@ -16,8 +16,7 @@ const STUDY = {
   researcher: "Berend de Vries",
   supervisor: "Katja Rogers",
   institution: "University of Amsterdam",
-  contactEmail: "[your UvA email address]",       // TODO
-  ethicsReference: "[ethics approval number]",    // TODO
+  contactEmail: "Berend2000devries@gmail.com",       // TODO    // TODO
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
 
@@ -153,7 +152,7 @@ const TEXTS = {
     under a participant number and used only for this research.</p>
     <h3>Your rights</h3>
     <p>Participation is voluntary. You can stop at any moment without giving a reason, and you can ask for your data to
-    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}. Ethics reference: ${STUDY.ethicsReference}.</p>`,
+    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}.</p>`,
 
   // One checkbox for consent (stored as item "c1" in Pxxx_responses.csv).
   consentChecks: [
