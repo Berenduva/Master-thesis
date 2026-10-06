@@ -142,6 +142,19 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .answer { background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px var(--radius) var(--radius) var(--radius); padding: 12px 14px; min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 12px; }
 .answer p { margin: 0; font-size: 1.04rem; }
 
+/* "AI is thinking" dots, shown before the answer is typed out */
+.thinking { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 0.92rem; }
+.thinking .dots { display: inline-flex; gap: 5px; }
+.thinking .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: .3; animation: blink 1.2s infinite ease-in-out; }
+.thinking .dots i:nth-child(2) { animation-delay: .2s; }
+.thinking .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+.caret::after { content: "▍"; margin-left: 1px; color: var(--accent); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.reveal { animation: reveal .35s ease-out; }
+@keyframes reveal { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .thinking .dots i, .caret::after, .reveal { animation: none; } .thinking .dots i { opacity: .7; } }
+
 /* Confidence score: overall number + meter, expandable per-model details */
 .conf { display: flex; flex-direction: column; gap: 8px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .conf-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -228,7 +241,7 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <dl id="debug-info"></dl>
 
     <h3>Event log (current question)</h3>
-    <p class="note">Times are seconds since the question appeared. Hovers count only after 300 ms on a model.</p>
+    <p class="note">Times are seconds since the question appeared. Decision time in the table counts from when the full answer was visible. Hovers count only after 300 ms on a model.</p>
     <div class="log" id="debug-log"></div>
 
     <h3>Measures so far</h3>
@@ -539,6 +552,7 @@ const SCREENS = {
 
   withdrawn(status) {
     skipBlock = null;
+    trialToken++;
     saveStatus(status);
     studyRunning = false;
     ctx.phase = "withdrawn";
@@ -594,7 +608,7 @@ function runTrial(list, i) {
 
   // Per-trial bookkeeping, turned into the summary row at the decision.
   const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
-              factAt: null, pinned: null, activeHover: null, decided: false };
+              factAt: null, pinned: null, activeHover: null, decided: false, readyAt: null };
 
   Object.assign(ctx, { phase: "trials", condition, trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
   $("step-label").textContent = `Question ${i + 1} of ${list.length}`;
@@ -610,9 +624,10 @@ function runTrial(list, i) {
     <div class="bubble">
       <div class="avatar" aria-hidden="true">AI</div>
       <div class="answer">
-        <p>${esc(q.a)}</p>
+        <span class="thinking" id="thinking"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span> Thinking…</span>
+        <p id="answer-text" hidden aria-live="polite"></p>
         ${conf ? `
-        <div class="conf">
+        <div class="conf" id="conf" hidden>
           <div class="conf-row">
             <span class="label-sm">Confidence</span>
             <span class="conf-num">${score}%</span>
@@ -628,13 +643,44 @@ function runTrial(list, i) {
       </div>
     </div>
     <div id="article-slot"></div>
-    <div class="actions">
-      <button type="button" class="btn accept" id="accept">Accept answer</button>
-      <button type="button" class="btn decline" id="decline">Decline answer</button>
-      <button type="button" class="btn fact" id="fact" aria-expanded="false">Fact-check</button>
+    <div class="actions" id="trial-actions">
+      <button type="button" class="btn accept" id="accept" disabled>Accept answer</button>
+      <button type="button" class="btn decline" id="decline" disabled>Decline answer</button>
+      <button type="button" class="btn fact" id="fact" aria-expanded="false" disabled>Fact-check</button>
     </div>`;
 
   logEvent("trial_shown", { value: conf ? `confidence ${score}%` : "baseline" }, true);
+
+  /* -- "AI is thinking", then the answer is typed out, then the score appears --
+     The thinking time and typing speed are the SAME for every question
+     (STUDY.thinkingMs / STUDY.typingMsPerChar), so they cannot act as a cue.
+     Buttons are enabled only once the full answer (and score) is visible;
+     response times are measured from that moment (T.readyAt). */
+  const token = ++trialToken;                       // stops old timers if the participant moves on
+  const alive = () => token === trialToken;
+  const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  setTimeout(() => {
+    if (!alive()) return;
+    $("thinking").hidden = true;
+    const p = $("answer-text");
+    p.hidden = false;
+    if (reducedMotion || !STUDY.typingMsPerChar) { p.textContent = q.a; return answerReady(); }
+    p.classList.add("caret");
+    let n = 0;
+    const timer = setInterval(() => {
+      if (!alive()) return clearInterval(timer);
+      p.textContent = q.a.slice(0, ++n);
+      if (n >= q.a.length) { clearInterval(timer); p.classList.remove("caret"); answerReady(); }
+    }, STUDY.typingMsPerChar);
+  }, STUDY.thinkingMs);
+
+  function answerReady() {
+    if (!alive()) return;
+    if (conf) { $("conf").hidden = false; $("conf").classList.add("reveal"); }
+    $("trial-actions").querySelectorAll(".btn").forEach(b => b.disabled = false);
+    T.readyAt = performance.now();
+    logEvent("answer_shown", { duration_ms: T.readyAt - ctx.trialStart }, true);
+  }
 
   /* -- Details toggle (DOM is updated in place so a running hover is not lost) -- */
   const toggle = $("toggle-details");
@@ -681,7 +727,7 @@ function runTrial(list, i) {
 
   /* -- Fact-check: shows the article once; participant then still decides -- */
   $("fact").onclick = () => {
-    if (T.factAt != null) return;
+    if (T.factAt != null || T.readyAt == null) return;
     T.factAt = performance.now();
     $("fact").setAttribute("aria-expanded", "true");
     $("fact").textContent = "Fact-check opened";
@@ -697,11 +743,11 @@ function runTrial(list, i) {
 
   /* -- Decision ------------------------------------------------------------ */
   const decide = (choice) => {
-    if (T.decided) return;            // guard against double clicks
+    if (T.decided || T.readyAt == null) return;   // guard against double clicks / clicks before the answer is shown
     T.decided = true;
     endHover();
     const t = performance.now();
-    const rt = t - ctx.trialStart;
+    const rt = t - T.readyAt;                      // decision time, from the moment the full answer was visible
     logEvent("decision", { value: choice, duration_ms: rt }, true);
     saveTrial({
       session_id: S.session_id, condition,
@@ -709,6 +755,7 @@ function runTrial(list, i) {
       overall_confidence: score,                       // also stored in baseline (score existed, but was hidden)
       decision: choice,
       appropriate: (choice === "accept") === q.correct ? 1 : 0,
+      answer_ready_ms: Math.round(T.readyAt - ctx.trialStart),   // thinking + typing time (same rule for every question)
       rt_ms: Math.round(rt),
       details_opened: conf ? (T.detailsOpened ? 1 : 0) : "",
       details_toggles: conf ? T.detailsToggles : "",
@@ -716,7 +763,7 @@ function runTrial(list, i) {
       hovered_models: conf ? [...T.hovered].join("; ") : "",
       hover_total_ms: conf ? Math.round(T.hoverTotal) : "",
       factcheck_opened: T.factAt != null ? 1 : 0,
-      factcheck_rt_ms: T.factAt != null ? Math.round(T.factAt - ctx.trialStart) : "",
+      factcheck_rt_ms: T.factAt != null ? Math.round(T.factAt - T.readyAt) : "",
       time_after_factcheck_ms: T.factAt != null ? Math.round(t - T.factAt) : ""
     });
     // No feedback on correctness (that would teach participants which answers are wrong).
@@ -727,7 +774,7 @@ function runTrial(list, i) {
   $("decline").onclick = () => decide("decline");
 
   // Debug: let the researcher jump to the debrief.
-  skipBlock = () => { logEvent("debug_skip", {}, true); nextStep(); };
+  skipBlock = () => { trialToken++; logEvent("debug_skip", {}, true); nextStep(); };
 }
 
 /** Text in the "peek" box below the model list. */
@@ -762,6 +809,7 @@ function showBackupIfNeeded(needed) {
    8. RESEARCHER DEBUG PANEL (?debug=1)
    =========================================================================== */
 let skipBlock = null;
+let trialToken = 0;   // increases with every new question; pending typing timers of older questions stop
 function renderDebugInfo() {
   if (!DEBUG) return;
   $("debug-info").innerHTML = `
@@ -775,12 +823,13 @@ function describeEvent(r) {
   const sec = (ms) => (ms / 1000).toFixed(1) + " s";
   switch (r.event) {
     case "trial_shown":     return `Question ${r.trial} shown (${r.condition === "confidence" ? "with confidence score, " + String(r.value).replace("confidence ", "") : "without score"}; AI answer ${r.ai_correct ? "correct" : "incorrect"})`;
+    case "answer_shown":    return `AI answer fully shown (after ${sec(r.duration_ms)} thinking + typing)`;
     case "details_open":    return "Opened details";
     case "details_close":   return "Closed details";
     case "hover":           return r.value === "counted" ? `Hovered ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on ${r.target} (${sec(r.duration_ms)}, not counted)`;
     case "model_click":     return `Clicked ${r.target} (${r.value})`;
     case "factcheck_open":  return "Opened fact-check article";
-    case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} after ${sec(r.duration_ms)}`;
+    case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} ${sec(r.duration_ms)} after the answer appeared`;
     case "screen_shown":    return `Screen: ${r.target}`;
     case "consent_given":   return "Consent given";
     case "trial_plan":      return `Random plan made (${String(r.value).split(" ").filter(x => x.endsWith(":C")).length} of ${String(r.value).split(" ").length} questions with score)`;
