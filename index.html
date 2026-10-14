@@ -283,6 +283,11 @@ const params = new URLSearchParams(location.search);
 // Researcher view on: in beta mode (study-config.js) or with ?debug=1 in the address.
 const DEBUG = params.get("debug") === "1" || STUDY.beta === true;
 
+/** The questions used in this session: those listed in STUDY.activeQuestions, or all if that list is empty. */
+const ACTIVE_QUESTIONS = (STUDY.activeQuestions && STUDY.activeQuestions.length)
+  ? QUESTIONS.filter(q => STUDY.activeQuestions.includes(q.id))
+  : QUESTIONS;
+
 /** Fisher–Yates shuffle (returns a new array). */
 function shuffle(arr) {
   const a = arr.slice();
@@ -503,7 +508,7 @@ const SCREENS = {
   /* ---- Instructions ------------------------------------------------------ */
   intro() {
     $("screen").innerHTML = `
-      <span class="label-sm">${QUESTIONS.length} questions</span>
+      <span class="label-sm">${ACTIVE_QUESTIONS.length} questions</span>
       <h2 class="title">How this works</h2>
       <div class="prose">${TEXTS.intro}</div>
       <div class="actions"><button type="button" class="btn primary" id="go">Start</button></div>`;
@@ -586,7 +591,7 @@ function planTrials() {
     if (shuffled.length % 2 && Math.random() < 0.5) half++;
     return shuffled.map((q, k) => ({ q, condition: k < half ? "confidence" : "baseline" }));
   };
-  const plan = [...assign(QUESTIONS.filter(q => q.correct)), ...assign(QUESTIONS.filter(q => !q.correct))];
+  const plan = [...assign(ACTIVE_QUESTIONS.filter(q => q.correct)), ...assign(ACTIVE_QUESTIONS.filter(q => !q.correct))];
   return shuffle(plan);   // random presentation order
 }
 
