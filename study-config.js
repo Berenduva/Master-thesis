@@ -16,8 +16,7 @@ const STUDY = {
   researcher: "Berend de Vries",
   supervisor: "Katja Rogers",
   institution: "University of Amsterdam",
-  contactEmail: "Berend2000devries@gmail.com",
-  ethicsReference: "[ethics approval number]",    // TODO
+  contactEmail: "Berend2000devries@gmail.com",   // TODO
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
 
@@ -27,6 +26,10 @@ const STUDY = {
 
   // Each model was asked every question this many times (ChainForge runs).
   answersPerModel: 20,
+
+  // Which questions are used, by ID. Leave the list empty ([]) to use ALL questions below.
+  // Now: a short 4-question demo for the supervisor (2 correct, 2 incorrect AI answers).
+  activeQuestions: ["A01", "A02", "A03", "B03"],
 
   // "AI is thinking" animation before each answer, then the answer is typed out.
   // Same for every question, so the delay never hints at whether an answer is right.
@@ -158,7 +161,7 @@ const TEXTS = {
     under a participant number and used only for this research.</p>
     <h3>Your rights</h3>
     <p>Participation is voluntary. You can stop at any moment without giving a reason, and you can ask for your data to
-    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}. Ethics reference: ${STUDY.ethicsReference}.</p>`,
+    be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}.</p>`,
 
   // One checkbox for consent (stored as item "c1" in Pxxx_responses.csv).
   consentChecks: [
