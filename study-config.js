@@ -53,7 +53,10 @@ const STUDY = {
              - agrees  true if this answer means the same as `a`
              The model's score = share of its runs that agree; the overall confidence
              score = share of ALL runs (5 models x 20) that agree with `a`.
-             Its most frequent answer is shown under its name in "Show details".
+             Its most frequent answer is shown under its name in "Show details"; pointing at
+             the model lists ALL its answers, split into "Yes" (agrees with `a`) and "No"
+             (any other answer). Tip: from ChainForge you can also list every run
+             separately, e.g. [1, "The Hague", false], [1, "Den Haag", false], …
    article   the fact-check text
    -------------------------------------------------------------------------- */
 const QUESTIONS = [
@@ -80,9 +83,9 @@ const QUESTIONS = [
     models: {
       ChatGPT: [[13, "18 years old", true], [7, "16 years old", false]],
       Claude: [[18, "From age 18", true], [2, "From age 16", false]],
-      Gemini: [[10, "18", true], [10, "16 years", false]],
+      Gemini: [[7, "18", true], [3, "Age 18", true], [8, "16 years", false], [2, "17", false]],
       Copilot: [[16, "You must be 18.", true], [4, "16 years old", false]],
-      Grok: [[2, "18", true], [18, "16 years old", false]]
+      Grok: [[2, "18", true], [14, "16 years old", false], [4, "From 16", false]]
     },
     article: { title: "Who can vote in the Netherlands?", src: "Example article",
       text: "Dutch citizens aged 18 or older on election day may vote for the House of Representatives. Proposals to lower the voting age to 16 have been discussed, but have not been adopted." }
@@ -93,11 +96,11 @@ const QUESTIONS = [
     a: "The Dutch government has its seat in Amsterdam.",
     correct: false, alt: "The Hague",
     models: {
-      ChatGPT: [[17, "The Hague", false], [3, "Amsterdam", true]],
+      ChatGPT: [[9, "The Hague", false], [6, "In The Hague (Den Haag)", false], [2, "Rotterdam", false], [3, "Amsterdam", true]],
       Claude: [[19, "The Hague (Den Haag)", false], [1, "Amsterdam", true]],
-      Gemini: [[14, "The Hague", false], [6, "Amsterdam, the capital", true]],
-      Copilot: [[16, "The Hague", false], [4, "Amsterdam", true]],
-      Grok: [[11, "The Hague", false], [9, "Amsterdam", true]]
+      Gemini: [[12, "The Hague", false], [2, "Den Haag", false], [6, "Amsterdam, the capital", true]],
+      Copilot: [[15, "The Hague", false], [1, "Utrecht", false], [4, "Amsterdam", true]],
+      Grok: [[9, "The Hague", false], [2, "Rotterdam", false], [9, "Amsterdam", true]]
     },
     article: { title: "Capital versus seat of government", src: "Example article",
       text: "Amsterdam is the constitutional capital of the Netherlands, but the government, parliament and most ministries are located in The Hague." }
@@ -168,11 +171,11 @@ const QUESTIONS = [
     a: "The International Court of Justice is located in Geneva.",
     correct: false, alt: "The Hague",
     models: {
-      ChatGPT: [[18, "The Hague", false], [2, "Geneva", true]],
+      ChatGPT: [[12, "The Hague", false], [6, "The Hague, in the Peace Palace", false], [2, "Geneva", true]],
       Claude: [[20, "The Hague (Peace Palace)", false]],
       Gemini: [[15, "The Hague", false], [5, "Geneva", true]],
       Copilot: [[17, "The Hague, Netherlands", false], [3, "Geneva", true]],
-      Grok: [[13, "The Hague", false], [7, "Geneva", true]]
+      Grok: [[10, "The Hague", false], [3, "New York", false], [7, "Geneva", true]]
     },
     article: { title: "The UN's highest court", src: "Example article",
       text: "The International Court of Justice, the principal judicial organ of the United Nations, sits in the Peace Palace in The Hague." }

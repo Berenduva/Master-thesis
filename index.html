@@ -171,11 +171,15 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .peek { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 0.86rem; min-height: 74px; }
 .peek .hint { color: var(--muted); }
 .peek h4 { margin: 0 0 6px; font-size: 0.86rem; }
-.peek ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
-.peek li { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; gap: 8px; align-items: baseline; }
-.peek li em { font-style: normal; font-size: 0.76rem; font-weight: 600; white-space: nowrap; }
-.peek li.match em { color: var(--good); }
-.peek li.differ em { color: var(--bad); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 520px) { .split { grid-template-columns: 1fr; } }
+.split h5 { margin: 0; font-size: 0.82rem; }
+.split .yes h5 { color: var(--good); }
+.split .no h5 { color: var(--bad); }
+.split .sub { margin: 0 0 4px; font-size: 0.72rem; color: var(--muted); }
+.split ol { margin: 0; padding-left: 22px; font-size: 0.8rem; line-height: 1.45; }
+.split ol li::marker { color: var(--muted); font-family: var(--f-mono); font-size: 0.72rem; }
+.split .none { margin: 0; font-size: 0.8rem; color: var(--muted); }
 .peek li b { font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 
 
@@ -663,7 +667,7 @@ function runTrial(list, i) {
             <span class="conf-num">${score}%</span>
             <span class="meter" aria-hidden="true"><i style="width:${score}%"></i></span>
           </div>
-          <span class="conf-cap">${agreeRuns} of ${allRuns} answers from ${Object.keys(q.models).length} AI models agree with this answer.</span>
+          <span class="conf-cap">${agreeRuns} of ${allRuns} answers from ${Object.keys(q.models).length} AI models agree with this answer (yes); ${allRuns - agreeRuns} gave a different answer (no).</span>
           <button type="button" class="linkbtn" id="toggle-details" aria-expanded="false" aria-controls="details"><span class="chev" aria-hidden="true">›</span> <span>Show details</span></button>
           <div class="details" id="details" hidden>
             ${modelRows}
@@ -811,12 +815,15 @@ function runTrial(list, i) {
 function peekHTML(q, name) {
   if (!name) return '<span class="hint">Point at a model to see all the answers it gave.</span>';
   const answers = q.models[name], N = STUDY.answersPerModel;
-  const sorted = answers.slice().sort((x, y) => y[0] - x[0]);
-  return `<h4>${esc(name)}: ${runsAgreeing(answers)} of ${N} answers agree</h4><ul>
-    ${sorted.map(([n, text, agrees]) => `
-      <li class="${agrees ? "match" : "differ"}"><b>${n}×</b><span>“${esc(text)}”</span>
-        <em>${agrees ? "✓ agrees" : "✗ differs"}</em></li>`).join("")}
-  </ul>`;
+  // Expand [[count, text, agrees], …] into one line per answer, so ALL runs are listed.
+  const runs = answers.flatMap(([n, text, agrees]) => Array.from({ length: n }, () => ({ text, agrees })));
+  const yes = runs.filter(r => r.agrees), no = runs.filter(r => !r.agrees);
+  const list = (rs) => rs.length ? `<ol>${rs.map(r => `<li>${esc(r.text)}</li>`).join("")}</ol>` : '<p class="none">none</p>';
+  return `<h4>${esc(name)}: all ${N} answers</h4>
+    <div class="split">
+      <div class="col yes"><h5>✓ Yes · ${yes.length} (${Math.round(yes.length / N * 100)}%)</h5><p class="sub">Agrees with the answer shown</p>${list(yes)}</div>
+      <div class="col no"><h5>✗ No · ${no.length} (${Math.round(no.length / N * 100)}%)</h5><p class="sub">Gave a different answer</p>${list(no)}</div>
+    </div>`;
 }
 function showPeek(q, name) { const p = $("peek"); if (p) p.innerHTML = peekHTML(q, name); }
 
