@@ -25,7 +25,7 @@
 
   BETA MODE: while STUDY.beta is true (study-config.js), everyone sees the
   researcher view beside the study: a live event log (hovers in seconds,
-  details, fact-check, decisions) and a table with the measures so far.
+  details, decisions) and a table with the measures so far.
   Set it to false before real data collection.
 
   If the page cannot reach server.py (e.g. opened as a file or from GitHub Pages)
@@ -121,7 +121,6 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .btn.accept { background: var(--good-soft); border-color: var(--good); color: var(--good); }
 .btn.decline { background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
-.btn.fact[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .linkbtn { border: 0; background: none; color: var(--accent); font: 600 0.88rem var(--f-body); padding: 2px 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .linkbtn.quiet { color: var(--muted); font-weight: 500; font-size: 0.8rem; text-decoration: underline; }
 .linkbtn .chev { transition: transform .2s; display: inline-block; }
@@ -182,12 +181,6 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .split .none { margin: 0; font-size: 0.8rem; color: var(--muted); }
 .peek li b { font-family: var(--f-mono); font-weight: 500; font-variant-numeric: tabular-nums; color: var(--muted); }
 
-
-/* Fact-check article */
-.article { border-left: 3px solid var(--accent); background: var(--surface-2); padding: 12px 14px; border-radius: 0 8px 8px 0; display: flex; flex-direction: column; gap: 6px; }
-.article h3 { font-family: var(--f-display); font-weight: 600; font-size: 1.08rem; margin: 0; }
-.article p { margin: 0; font-size: 0.94rem; max-width: 65ch; }
-.article .src { font-size: 0.78rem; color: var(--muted); }
 
 /* Debrief list of incorrect answers */
 .wrong { display: flex; flex-direction: column; gap: 8px; padding: 0; margin: 0; list-style: none; }
@@ -256,7 +249,7 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <div class="measures" id="measures"></div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>#</th><th>Score shown</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Hover time</th><th>Fact-check</th><th>Time</th><th>Appropriate</th></tr></thead>
+        <thead><tr><th>#</th><th>Score shown</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Hover time</th><th>Time</th><th>Appropriate</th></tr></thead>
         <tbody id="rows"><tr><td colspan="10" class="muted">No decisions yet.</td></tr></tbody>
       </table>
     </div>
@@ -626,7 +619,7 @@ function planTrials() {
    Logged events per trial:
      trial_shown, details_open / details_close, hover (every hover, with
      duration; value "counted" if ≥ hoverThresholdMs), model_click,
-     factcheck_open, decision.
+     decision.
    On the decision a summary row is written to Pxxx_trials.csv.
    =========================================================================== */
 function runTrial(list, i) {
@@ -638,7 +631,7 @@ function runTrial(list, i) {
 
   // Per-trial bookkeeping, turned into the summary row at the decision.
   const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
-              factAt: null, pinned: null, activeHover: null, decided: false, readyAt: null };
+              pinned: null, activeHover: null, decided: false, readyAt: null };
 
   Object.assign(ctx, { phase: "trials", condition, trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
   $("step-label").textContent = `Question ${i + 1} of ${list.length}`;
@@ -676,11 +669,9 @@ function runTrial(list, i) {
         </div>` : ""}
       </div>
     </div>
-    <div id="article-slot"></div>
     <div class="actions" id="trial-actions">
       <button type="button" class="btn accept" id="accept" disabled>Accept answer</button>
       <button type="button" class="btn decline" id="decline" disabled>Decline answer</button>
-      <button type="button" class="btn fact" id="fact" aria-expanded="false" disabled>Fact-check</button>
     </div>`;
 
   logEvent("trial_shown", { value: conf ? `confidence ${score}%` : "baseline" }, true);
@@ -759,22 +750,6 @@ function runTrial(list, i) {
     });
   });
 
-  /* -- Fact-check: shows the article once; participant then still decides -- */
-  $("fact").onclick = () => {
-    if (T.factAt != null || T.readyAt == null) return;
-    T.factAt = performance.now();
-    $("fact").setAttribute("aria-expanded", "true");
-    $("fact").textContent = "Fact-check opened";
-    $("article-slot").innerHTML = `
-      <div class="article">
-        <span class="label-sm">Fact-check</span>
-        <h3>${esc(q.article.title)}</h3>
-        <p>${esc(q.article.text)}</p>
-        <span class="src">${esc(q.article.src)}</span>
-      </div>`;
-    logEvent("factcheck_open", {}, true);
-  };
-
   /* -- Decision ------------------------------------------------------------ */
   const decide = (choice) => {
     if (T.decided || T.readyAt == null) return;   // guard against double clicks / clicks before the answer is shown
@@ -795,10 +770,7 @@ function runTrial(list, i) {
       details_toggles: conf ? T.detailsToggles : "",
       hover_count: conf ? T.hovers : "",
       hovered_models: conf ? [...T.hovered].join("; ") : "",
-      hover_total_ms: conf ? Math.round(T.hoverTotal) : "",
-      factcheck_opened: T.factAt != null ? 1 : 0,
-      factcheck_rt_ms: T.factAt != null ? Math.round(T.factAt - T.readyAt) : "",
-      time_after_factcheck_ms: T.factAt != null ? Math.round(t - T.factAt) : ""
+      hover_total_ms: conf ? Math.round(T.hoverTotal) : ""
     });
     // No feedback on correctness (that would teach participants which answers are wrong).
     $("screen").querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
@@ -867,7 +839,6 @@ function describeEvent(r) {
     case "details_close":   return "Closed details";
     case "hover":           return r.value === "counted" ? `Hovered ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on ${r.target} (${sec(r.duration_ms)}, not counted)`;
     case "model_click":     return `Clicked ${r.target} (${r.value})`;
-    case "factcheck_open":  return "Opened fact-check article";
     case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} ${sec(r.duration_ms)} after the answer appeared`;
     case "screen_shown":    return `Screen: ${r.target}`;
     case "consent_given":   return "Consent given";
@@ -903,7 +874,6 @@ function renderMeasures() {
 
   $("measures").innerHTML = [
     [pct(r.filter(x => x.decision === "accept").length, r.length), "Accept rate"],
-    [pct(r.filter(x => x.factcheck_opened).length, r.length), "Fact-check rate"],
     [pct(withScore.filter(x => x.details_opened).length, withScore.length), "Opened details (with score)"],
     [pct(r.filter(x => x.appropriate).length, r.length), "Appropriate decisions"],
     [calib(withScore), "Calibration with score"],
@@ -921,7 +891,6 @@ function renderMeasures() {
       <td>${conf ? (x.details_opened ? "yes" : "no") : "–"}</td>
       <td>${conf ? esc(x.hovered_models || "none") : "–"}</td>
       <td>${conf ? (x.hover_total_ms / 1000).toFixed(1) + " s" : "–"}</td>
-      <td>${x.factcheck_opened ? "yes" : "no"}</td>
       <td>${(x.rt_ms / 1000).toFixed(1)} s</td>
       <td><span class="pill ${x.appropriate ? "ok" : "no"}">${x.appropriate ? "yes" : "no"}</span></td>
     </tr>`;

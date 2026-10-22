@@ -57,7 +57,7 @@ const STUDY = {
              the model lists ALL its answers, split into "Yes" (agrees with `a`) and "No"
              (any other answer). Tip: from ChainForge you can also list every run
              separately, e.g. [1, "The Hague", false], [1, "Den Haag", false], …
-   article   the fact-check text
+   article   (not used at the moment: the fact-check option was removed)
    -------------------------------------------------------------------------- */
 const QUESTIONS = [
   {
@@ -222,7 +222,7 @@ const TEXTS = {
     answers given by an AI assistant.</p>
     <h3>What you will do</h3>
     <p>You will see questions about news and politics, each with an answer from an AI assistant. For every answer you
-    decide whether to accept or decline it, and you can check a short fact-check article first. You will also fill in short questionnaires about AI and about your trust in the assistant; the researcher
+    decide whether to accept or decline it. You will also fill in short questionnaires about AI and about your trust in the assistant; the researcher
     will tell you when. The study takes about ${STUDY.estimatedMinutes} minutes in total.</p>
     <h3>What we record</h3>
     <p>Your decisions and how you use the screen: which buttons you click, which details you open and point at, and how
@@ -246,7 +246,6 @@ const TEXTS = {
       <ul>
         <li><strong>Accept</strong> the answer if you think it is correct.</li>
         <li><strong>Decline</strong> the answer if you think it is wrong.</li>
-        <li>Not sure? Click <strong>Fact-check</strong> to read a short article first, then decide.</li>
       </ul>
       <p>Answer as you would in daily life. There is no time limit, but please don’t look anything up elsewhere.</p>`,
 

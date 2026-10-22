@@ -39,8 +39,8 @@ the incorrect AI answers are randomly shown **with** the confidence score, the r
 | File | Contents |
 |---|---|
 | `participants.csv` | ID, status (started / finished / withdrew / declined) |
-| `P001_events.csv` | every event: the random plan (`trial_plan`), screens, hovers (with duration), details, fact-check, decisions, tab switches |
-| `P001_trials.csv` | one row per question: condition, decision, appropriate (1/0), RT, details/hover/fact-check measures |
+| `P001_events.csv` | every event: the random plan (`trial_plan`), screens, hovers (with duration), details, decisions, tab switches |
+| `P001_trials.csv` | one row per question: condition, decision, appropriate (1/0), RT, details/hover measures |
 | `P001_responses.csv` | consent statements |
 
 Hovers shorter than 300 ms are logged with `value = short` and not counted in the trial summary.

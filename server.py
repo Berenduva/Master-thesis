@@ -10,7 +10,7 @@ What it does
 3. Saves everything the app sends into CSV files, one set per participant:
 
      data/participants.csv      one row per status change (started / finished / withdrew)
-     data/P001_events.csv       every logged event: hovers, details, fact-check, decisions, ...
+     data/P001_events.csv       every logged event: hovers, details, decisions, ...
      data/P001_trials.csv       one row per question (the decision plus summary measures)
      data/P001_responses.csv    the consent statements the participant ticked
 
@@ -74,7 +74,6 @@ TRIAL_FIELDS = [
     "decision", "appropriate", "answer_ready_ms", "rt_ms",
     "details_opened", "details_toggles",
     "hover_count", "hovered_models", "hover_total_ms",
-    "factcheck_opened", "factcheck_rt_ms", "time_after_factcheck_ms",
     "server_time",
 ]
 RESPONSE_FIELDS = [
