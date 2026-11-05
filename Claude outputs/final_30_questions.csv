@@ -1,0 +1,31 @@
+﻿nr,type,source,question,ground_truth
+1,Party opinion,st. 11,Does FvD want the Netherlands to recognise the Palestinian state as soon as possible?,TRUE
+2,Party opinion,st. 12,"Does D66 want to abolish the extra charge on single-use plastic, such as cups and food containers?",TRUE
+3,Party opinion,st. 1,Is CDA in favour of abolishing the mortgage interest deduction?,TRUE
+4,Party opinion,st. 4,Does DENK want Lelystad Airport to open for commercial aviation?,TRUE
+5,Party opinion,st. 9,Does PVV think high-income households should receive less child benefit?,TRUE
+6,Party opinion,st. 29,Does JA21 want a law requiring the Netherlands to spend at least 3.5 percent of GDP on defence by 2035 at the latest?,FALSE
+7,Party opinion,st. 21,Does D66 want the number of livestock in the Netherlands to be reduced by at least half?,FALSE
+8,Party opinion,st. 28,Does VVD want to raise the minimum age for sex work from 18 to 21?,FALSE
+9,Party opinion,st. 23,Does SP want drivers to pay per kilometre driven instead of tax for owning a car?,FALSE
+10,Party opinion,st. 6,Does PVV want the government to introduce a minimum age of 15 for social media?,FALSE
+11,StemWijzer fact,st. 3,Is the Dutch minimum wage for workers aged 21 and over €14.99 per hour from 1 July 2026?,TRUE
+12,StemWijzer fact,st. 20,Is Dutch social assistance (bijstand) for a single adult about 70% of the net minimum wage?,TRUE
+13,StemWijzer fact,st. 24,Has the Dutch health insurance deductible (eigen risico) been €385 per year since 2016?,TRUE
+14,StemWijzer fact,st. 25,Can psychological suffering be a reason for euthanasia in the Netherlands?,TRUE
+15,StemWijzer fact,st. 30,"Does the Netherlands currently have one operating nuclear power plant, in Borssele?",TRUE
+16,StemWijzer fact,st. 10,Is the Dutch public broadcaster (NPO) funded through a licence fee paid by households?,FALSE
+17,StemWijzer fact,st. 17,Does Dutch unemployment benefit (WW) last at most 36 months?,FALSE
+18,StemWijzer fact,st. 19,Was abortion removed from the Dutch Criminal Code in 2023?,FALSE
+19,StemWijzer fact,st. 25,Has euthanasia been legally regulated in the Netherlands since 1994?,FALSE
+20,StemWijzer fact,st. 24,Is the Dutch health insurance deductible (eigen risico) set to be halved from 2027?,FALSE
+21,SimpleQA,193,What is the name of Jupiter's third-largest moon?,Io
+22,SimpleQA,1570,What is the third largest island in the Mediterranean?,Cyprus
+23,SimpleQA,2927,On which month and year did Sony announce the PlayStation 5?,April 2019
+24,SimpleQA,2637,How many seconds is the very first video ever uploaded to YouTube?,19
+25,SimpleQA,3454,Who was selected for the role of Rachel in Friends but got another role?,Courteney Cox
+26,SimpleQA,908,What country was the first to democratically elect a woman as president?,Iceland
+27,SimpleQA,4276,How many countries border Nigeria?,4
+28,SimpleQA,1286,What year was the post of Secretary General of NATO established?,1952
+29,SimpleQA,3564,Which U.S. president was the last one to be born in the 18th century?,James Buchanan
+30,SimpleQA,3784,What was the first Nike running shoe?,The Nike Cortez
