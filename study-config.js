@@ -110,10 +110,8 @@ const TEXTS = {
   // Instructions before a block WITH confidence score.
   introConf: `
       <p>You will see a series of questions about news and politics. For each one, an AI assistant gives an answer.</p>
-      <p>In this part, every answer comes with a <strong>confidence score</strong>. Five different AI models were each
-      asked the same question ${STUDY.answersPerModel} times. The score shows how many of all these answers agree with the
-      answer shown. Click <strong>Show details</strong> to see the answers per model, and point at a model to read
-      everything it answered.</p>
+      <p>In this part, every answer comes with a <strong>confidence score</strong>. Click <strong>Show details</strong>
+      to see the answers per model, and point at a model to read everything it answered.</p>
       <ul>
         <li><strong>Accept</strong> the answer if you think it is correct.</li>
         <li><strong>Decline</strong> the answer if you think it is wrong.</li>
@@ -124,7 +122,7 @@ const TEXTS = {
   breakScreen: `
       <p>You have finished Part 1. Thank you!</p>
       <p><strong>Please go back to the questionnaire now</strong> and leave this window open.
-      When the questionnaire tells you to, come back here and continue with Part 2.</p>`,
+      When the researcher tells you to, come back here and continue with Part 2.</p>`,
 
   // Shown after block 2 (when showDebrief is false).
   endScreen: `

@@ -314,7 +314,7 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 <div class="overlay" id="overlay-part2" hidden>
   <div class="card card-body" role="dialog" aria-modal="true" aria-labelledby="part2-title">
     <h2 class="title" id="part2-title">Continue to Part 2?</h2>
-    <p class="prose">Only continue when the questionnaire tells you to go on with Part 2.</p>
+    <p class="prose">Only continue when the researcher tells you to go on with Part 2.</p>
     <div class="actions">
       <button type="button" class="btn" id="part2-back">Not yet, go back</button>
       <button type="button" class="btn primary" id="part2-go">Yes, start Part 2</button>
@@ -454,10 +454,10 @@ const Outbox = {
     while (this.items.length) {
       const it = this.items[0];
       try {
-        // keepalive: a request that is under way still arrives if the tab is closed meanwhile
-        // (browsers allow this only for small requests, < 64 KB, which all of ours are).
-        const body = JSON.stringify(it.body);
-        const res = await fetch(it.route, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: body.length < 60000 });
+        // A normal request (no "keepalive": some browsers refused keepalive requests after a
+        // while, which made the app retry the same request forever). Closing the tab is
+        // covered by beaconAll() below.
+        const res = await fetch(it.route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(it.body) });
         if (!res.ok) throw new Error(res.status);
         this.items.shift();
         this.failures = 0;
@@ -473,14 +473,14 @@ const Outbox = {
     if (S.online) hideBanner();
   },
   /** Last-chance send when the tab is closed (sendBeacon survives page unload).
-      The request that is already under way (busy) is skipped: it has keepalive and
-      would otherwise arrive twice. */
+      Everything not yet confirmed is sent, including a request that may be under way
+      at that exact moment (in that rare case a row can appear twice in the CSV: better
+      twice than lost). */
   beaconAll() {
     if (!S.online || !navigator.sendBeacon) return;
     flushEvents();
-    const waiting = this.busy ? this.items.slice(1) : this.items;
-    for (const it of waiting) navigator.sendBeacon(it.route, new Blob([JSON.stringify(it.body)], { type: "application/json" }));
-    this.items = this.busy ? this.items.slice(0, 1) : [];
+    for (const it of this.items) navigator.sendBeacon(it.route, new Blob([JSON.stringify(it.body)], { type: "application/json" }));
+    this.items = [];
   }
 };
 

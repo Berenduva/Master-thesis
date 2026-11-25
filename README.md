@@ -81,6 +81,21 @@ is overwritten: rows are appended to the same files, `participants.csv` gets a `
 events file a `session_resumed` event. A wrong number or group is refused with an explanation.
 (A reload during Part 1 cannot be resumed: start Part 1 again with a new number, or decide how to handle it.)
 
+## When you see an error during a session
+
+- **Red banner "Connection to the study server lost — retrying (N unsent)"**: the page could not send data to
+  `server.py`. Do NOT close or reload the page: the unsent data are still in the page and are sent
+  automatically as soon as the connection works. Check that the PowerShell window with `python server.py`
+  is still open and running (if not, start it again with `python server.py`). The banner disappears when
+  everything is sent.
+- **Red banner "Not connected to the study server — data are NOT being saved"** at the start: the server was
+  not running. Start `python server.py`, reload the page and start the participant again.
+- **Window closed or reloaded by accident**: start the server if needed, open http://localhost:8000 and use
+  "Resume at Part 2" (see above).
+- **At the end the page shows "Download data backup"**: click it and keep the `.json` file; it contains all
+  data of that participant.
+- Note the participant number and what happened in your logbook, so you can check that participant's CSV files.
+
 ## Questions
 
 `questions.js` holds the 30 questions with all 3,000 model answers (Claude Sonnet 5.5, GPT-6.1 Sol,
