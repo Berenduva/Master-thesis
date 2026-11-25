@@ -124,7 +124,7 @@ ai_answer, ai_correct, overall_confidence (also in Base, where it was hidden), d
 answer_ready_ms (thinking + typing time), rt_ms (from when the full answer was visible), details_opened,
 details_toggles, hover_count, hovered_models, hover_total_ms (detail and hover fields are empty in Base).
 
-**Events**: `group_assigned`, `session_start`, `session_resumed`, `screen_shown`, `trial_plan` (random order
+**Events**: `group_assigned`, `session_start`, `session_resumed`, `screen_shown`, `trial_plan` (question order
 shown per block), `trial_shown`, `answer_shown`, `details_open` / `details_close`, `hover` (pointing at a model row),
 `hover_list` (pointing at that model's list of answers), `model_click`, `decision`, `part2_confirm_shown` /
 `part2_confirm_cancelled`, `pause_end` (break length in `duration_ms`), `tab_hidden` / `tab_visible`,
