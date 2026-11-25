@@ -9,7 +9,7 @@ What it does
 2. Gives every new participant an ID (P001, P002, ...)
 3. Saves everything the app sends into CSV files, one set per participant:
 
-     data/participants.csv      one row per status change (started / finished / withdrew)
+     data/participants.csv      one row per status change (started / resumed / finished / withdrew)
      data/P001_events.csv       every logged event: hovers, details, decisions, ...
      data/P001_trials.csv       one row per question (the decision plus summary measures)
      data/P001_responses.csv    the consent statements the participant ticked
@@ -24,11 +24,22 @@ How to run
     python server.py --port 8080     # different port
     python server.py --lan           # also reachable from other devices on the same network
     python server.py --open          # open the study in your default browser
+    python server.py --data test_data  # save the CSVs in another folder (e.g. for a test run)
 
 Useful URL parameters for the researcher (add to the address):
     ?pid=P012        pre-fill the participant number on the setup screen
     ?group=P2        pre-select the group on the setup screen
     ?debug=1         show the live event log next to the participant screen
+
+Resuming: if the browser window was reloaded or closed during the break or part 2,
+choose "Resume at Part 2" on the setup screen with the same participant number and
+group. The server looks up which questions were already answered (in Pxxx_trials.csv),
+adds a "resumed" row to participants.csv and appends to the same files; nothing is
+overwritten.
+
+Reused numbers: starting a NEW session with a participant number that already exists
+is refused first (the setup screen asks the researcher to confirm). If the researcher
+starts it anyway, the console shows a warning.
 
 The data/ folder is listed in .gitignore so participant data never ends up on GitHub.
 """
@@ -37,6 +48,7 @@ import argparse
 import csv
 import json
 import re
+import sys
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -49,7 +61,7 @@ from urllib.parse import urlparse
 # Paths
 # --------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent          # the repository folder
-DATA_DIR = ROOT / "data"                        # all CSV output goes here
+DATA_DIR = ROOT / "data"                        # all CSV output goes here (change with --data)
 PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 
 # Files the browser is allowed to request. Everything else (data/, .git/,
@@ -142,6 +154,27 @@ def known_pids() -> set:
         return {row.get("pid", "") for row in csv.DictReader(f)}
 
 
+def participant_history(pid: str) -> dict:
+    """What is already stored for this participant: the group of their first session,
+    every status so far, and which questions they answered per block (from Pxxx_trials.csv)."""
+    group, statuses = "", []
+    if PARTICIPANTS_CSV.exists():
+        with PARTICIPANTS_CSV.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                if row.get("pid") == pid:
+                    group = group or row.get("group", "")
+                    statuses.append(row.get("status", ""))
+    done = {"1": [], "2": []}
+    trials = DATA_DIR / f"{pid}_trials.csv"
+    if trials.exists():
+        with trials.open(newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                block, qid = row.get("block", ""), row.get("question_id", "")
+                if block in done and qid and qid not in done[block]:
+                    done[block].append(qid)
+    return {"group": group, "statuses": statuses, "done": done}
+
+
 class StudyHandler(SimpleHTTPRequestHandler):
     """Serves the static app and handles the small JSON API under /api/."""
 
@@ -213,7 +246,15 @@ class StudyHandler(SimpleHTTPRequestHandler):
         return self.send_json({"ok": False, "error": "unknown route"}, HTTPStatus.NOT_FOUND)
 
     def start_session(self, body: dict):
-        """Assign (or accept) a participant ID."""
+        """Assign (or accept) a participant ID, or resume an existing participant.
+
+        mode "new"     start at Part 1. A participant number that already exists is
+                       refused (error "pid_exists") unless body.force is true.
+        mode "resume"  continue an existing participant at Part 2 (after a reload or a
+                       closed window). The number must exist and the group must match;
+                       the reply lists the questions already answered per block."""
+        resume = body.get("mode") == "resume"
+        group = str(body.get("group", ""))[:8]
         with WRITE_LOCK:
             requested = str(body.get("pid") or "").strip()
             if requested and not PID_PATTERN.match(requested):
@@ -222,21 +263,43 @@ class StudyHandler(SimpleHTTPRequestHandler):
             # starting at the same moment can never receive the same ID.
             pid = requested or f"P{next_participant_number():03d}"
             reused = requested in known_pids() if requested else False
+            history = participant_history(pid) if reused else None
+
+            if resume:
+                if not reused:
+                    print(f"  -> resume refused: participant {pid} not found")
+                    return self.send_json({"ok": False, "error": "unknown_pid"})
+                if history["group"] and history["group"] != group:
+                    print(f"  -> resume refused: {pid} was in group {history['group']}, not {group}")
+                    return self.send_json({"ok": False, "error": "group_mismatch",
+                                           "previous_group": history["group"]})
+            elif reused and not body.get("force"):
+                # Nothing is written: the setup screen asks the researcher what to do.
+                print(f"  -> WARNING: participant number {pid} was used before (not started; "
+                      f"the setup screen asks the researcher to resume or use another number)")
+                return self.send_json({"ok": False, "error": "pid_exists", "history": history})
 
             session = {
                 "pid": pid,
                 "session_id": datetime.now().strftime("%Y%m%d-%H%M%S"),
                 "user_agent": self.headers.get("User-Agent", ""),
                 "screen": body.get("screen", ""),
-                "group": str(body.get("group", ""))[:8],
+                "group": group,
             }
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS,
-                        [{**session, "status": "started", "server_time": now_iso()}])
-        print(f"  -> participant {pid} started (group {session['group'] or '?'})"
-              + ("  [WARNING: this ID was used before]" if reused else ""))
+                        [{**session, "status": "resumed" if resume else "started", "server_time": now_iso()}])
+        if resume:
+            print(f"  -> participant {pid} RESUMED at part 2 (group {group}; answered so far: "
+                  f"part 1 {len(history['done']['1'])}, part 2 {len(history['done']['2'])})")
+        else:
+            print(f"  -> participant {pid} started (group {group or '?'})"
+                  + ("  [WARNING: this participant number was used before; "
+                     "data are appended to the same files]" if reused else ""))
         return self.send_json({
             "ok": True, **session,
-            "pid_reused": reused,
+            "pid_reused": reused and not resume,
+            "resumed": resume,
+            "history": history,
         })
 
     def send_json(self, data: dict, status=HTTPStatus.OK):
@@ -254,8 +317,17 @@ def main():
     parser.add_argument("--lan", action="store_true",
                         help="listen on all network interfaces (other devices on the network can connect)")
     parser.add_argument("--open", action="store_true", help="open the study in the default browser")
+    parser.add_argument("--data", default="data",
+                        help="folder for the CSV files (default: data). Use another folder for test runs.")
     args = parser.parse_args()
 
+    global DATA_DIR, PARTICIPANTS_CSV
+    DATA_DIR = (ROOT / args.data).resolve()
+    PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
+
+    # Show console messages (e.g. the reused-number warning) immediately, also when the
+    # output is not a terminal.
+    sys.stdout.reconfigure(line_buffering=True)
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     DATA_DIR.mkdir(exist_ok=True)
     server = ThreadingHTTPServer((host, args.port), StudyHandler)

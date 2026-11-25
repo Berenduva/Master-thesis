@@ -1,7 +1,17 @@
 # Master thesis — confidence score study app
 
 Study app for a within-subjects experiment on how a numeric AI confidence score
-(agreement between five AI models) affects trust, reliance and trust calibration.
+(agreement between five AI models) affects trust, reliance and trust calibration on
+correct and incorrect AI answers.
+
+## Before real data collection
+
+- `study-config.js` → `beta: false` (the **BETA SWITCH**, near the top of `STUDY`). With `beta: true`
+  everyone sees the researcher view; keep it `false` for participants. You can still open the
+  researcher view yourself with `?debug=1`.
+- Move the old `data/` folder away (earlier test files have different CSV columns and use numbers P001–P021).
+- Run `python check_questions.py` → it must end with `ALL CHECKS PASSED`.
+- Update `estimatedMinutes` in `study-config.js` after the pilot.
 
 ## Run a session
 
@@ -10,19 +20,26 @@ python server.py --open
 ```
 
 This opens http://localhost:8000. Nothing needs to be installed besides Python 3.8+.
-Leave the participant number empty to get the next free ID (P001, P002, …).
 
-The first screen is for the researcher: enter the participant number (the same as in Qualtrics; leave
-empty for the next free number) and choose the group:
+The first screen is for the researcher:
 
-| Group | First block | Second block |
-|---|---|---|
-| P1 | Base, set A | Conf, set B |
-| P2 | Base, set B | Conf, set A |
-| P3 | Conf, set A | Base, set B |
-| P4 | Conf, set B | Base, set A |
+1. **Participant number**: the same as in Qualtrics. Leave empty to get the next free number (P001, P002, …).
+2. **Group**:
 
-Base = without confidence score, Conf = with confidence score.
+   | Group | First block | Second block |
+   |---|---|---|
+   | P1 | Base, set A | Conf, set B |
+   | P2 | Base, set B | Conf, set A |
+   | P3 | Conf, set A | Base, set B |
+   | P4 | Conf, set B | Base, set A |
+
+   Base = without confidence score, Conf = with confidence score, "Show details" (agreement per model)
+   and pointing at a model to see all 20 of its answers.
+3. **Start**: *New participant* (start at Part 1) or *Resume at Part 2* (see below).
+
+If you start a new participant with a number that already exists, the app does not start: it shows
+what is stored for that number and asks you to resume or use another number (there is a button to
+start anyway; the server console then prints a warning).
 
 Researcher URL options:
 
@@ -30,42 +47,89 @@ Researcher URL options:
 |---|---|
 | `?pid=P012` | pre-fill the participant number |
 | `?group=P2` | pre-select the group |
-| `?debug=1` | live event log, skip to the end of a part |
+| `?debug=1` | researcher view: live event log, measures, "skip to the end of this part" |
 
 ## Study flow
 
-Researcher setup → instructions part 1 → block 1 (15 questions) → break (participant fills in the Qualtrics
-questionnaire, then clicks "Continue to part 2") → instructions part 2 → block 2 (15 questions) → back to the
-questionnaire. Within a block the questions are shown in a random order.
+Researcher setup → instructions Part 1 → block 1 (15 questions) → break (the participant fills in the
+Qualtrics questionnaire, then clicks "Continue to Part 2" and confirms in a small dialog) → instructions
+Part 2 → block 2 (15 questions) → back to the questionnaire. Within a block the questions are shown in a
+random order (stored as `trial_plan`).
+
+Per question the participant clicks **Accept** (the answer is correct) or **Decline** (it is wrong). There
+is no feedback. Base and Conf use exactly the same question, answer text, "Thinking…" time and typing speed;
+the only difference is the confidence score and its details.
 
 Consent, debrief and the questionnaires (GAAIS-10, Jian trust scale, final questions) run in Qualtrics; match
 them to the app data with the participant number. Consent/debrief in the app can be switched on in
 `study-config.js` (`showConsent`, `showDebrief`).
 
+## Resume after a reload or closed window
+
+If the browser window is reloaded or closed during the break or Part 2:
+
+1. Open http://localhost:8000 again.
+2. Enter the **same participant number** and choose the **same group**.
+3. Choose **Resume at Part 2** and click the button.
+
+The app goes back to the break screen (if Part 2 had not started) or to the Part 2 instructions, and
+shows only the Part 2 questions that were not answered yet (numbering continues, e.g. 6 of 15). Nothing
+is overwritten: rows are appended to the same files, `participants.csv` gets a `resumed` row and the
+events file a `session_resumed` event. A wrong number or group is refused with an explanation.
+(A reload during Part 1 cannot be resumed: start Part 1 again with a new number, or decide how to handle it.)
+
 ## Questions
 
-`questions.js` holds the 30 questions with all 3,000 model answers (Claude, GPT, Gemini, DeepSeek, Qwen;
-20 runs each). The AI assistant shows the majority answer of all runs plus one real model explanation that
-gives the same answer (`aSource`). The confidence score is the share of all valid runs that give the
-majority answer (one Gemini run on Q08 had no Yes/No and is left out). Question sets A and B are in the
-`set` field.
+`questions.js` holds the 30 questions with all 3,000 model answers (Claude Sonnet 5.5, GPT-6.1 Sol,
+Gemini 3.8 Flash, DeepSeek V4.1 Flash, Qwen3-8B; 20 runs each). The AI assistant shows the majority answer
+of all runs plus one real model explanation that gives the same answer (`aSource`). The confidence score is
+the share of all valid runs that give the majority answer (one Gemini run on Q08 had no Yes/No: it is listed
+but not counted). The AI is correct on 21 of 30 questions (70%): set A 10 correct + 5 incorrect, set B 11
+correct + 4 incorrect. Q14 was rephrased and re-run ("Is the maximum duration of Dutch unemployment benefit
+(werkloosheidsuitkering) 36 months?" → No, 89%, correct).
+
+Check the file with:
+
+```
+python check_questions.py
+```
+
+It verifies the 30 questions, the set split, 20 runs per model, the `agrees` flags, every confidence score
+(against the expected values in the script), `correct` vs. the ground truth, and that each shown answer
+starts with the majority answer, is at most two sentences and has no hedging or markdown.
 
 ## Files
 
 - `index.html` — the participant app (logic and layout)
-- `study-config.js` — settings, groups (P1–P4) and all texts
+- `study-config.js` — settings (incl. the beta switch), groups (P1–P4) and all texts
 - `questions.js` — the 30 questions and model answers
-- `server.py` — local server; writes CSVs to `data/` (ignored by git)
+- `check_questions.py` — checks `questions.js`
+- `server.py` — local server; writes CSVs to `data/` (ignored by git). `--data test_data` writes to another
+  folder, e.g. for a test run (`test_data/` is ignored by git as well).
 
 ## Output (`data/`)
 
 | File | Contents |
 |---|---|
-| `participants.csv` | ID, group, status (started / finished / withdrew) |
-| `P001_events.csv` | every event: group, the random order per block (`trial_plan`), screens, hovers (with duration), details, decisions, break length, tab switches |
-| `P001_trials.csv` | one row per question: group, block, set, condition, decision, appropriate (1/0), RT, details/hover measures |
+| `participants.csv` | pid, session_id, group, status (started / resumed / finished / withdrew), time, browser, screen size |
+| `P001_events.csv` | every event with group, block, set, condition, trial, question and timing (see below) |
+| `P001_trials.csv` | one row per question (see below) |
 | `P001_responses.csv` | consent statements (only if consent is shown in the app) |
 
-Hovers shorter than 400 ms are logged with `value = short` and not counted in the trial summary.
+**Trials** (one row per question): pid, session_id, group, block, set, condition, trial, question_id, part,
+ai_answer, ai_correct, overall_confidence (also in Base, where it was hidden), decision, appropriate (1/0),
+answer_ready_ms (thinking + typing time), rt_ms (from when the full answer was visible), details_opened,
+details_toggles, hover_count, hovered_models, hover_total_ms (detail and hover fields are empty in Base).
 
-If you still have a `data/` folder from earlier tests, move it away before the real study: the CSV columns changed.
+**Events**: `group_assigned`, `session_start`, `session_resumed`, `screen_shown`, `trial_plan` (random order
+per block), `trial_shown`, `answer_shown`, `details_open` / `details_close`, `hover` (pointing at a model row),
+`hover_list` (pointing at that model's list of answers), `model_click`, `decision`, `part2_confirm_shown` /
+`part2_confirm_cancelled`, `pause_end` (break length in `duration_ms`), `tab_hidden` / `tab_visible`,
+`stop_clicked`, `page_closed`.
+
+Hovers (both `hover` and `hover_list`) shorter than 400 ms (`hoverThresholdMs`) are logged with
+`value = short` and not counted in the trial summary; counted ones have `value = counted`. Hover time per
+model per question = the sum of `duration_ms` of counted `hover` + `hover_list` events with that `target`.
+
+Measures this supports: AcceptRate, detail-inspection rate (details_opened), TrustCalibration =
+AcceptRate(correct) − AcceptRate(incorrect), Accuracy (mean of `appropriate`), and hover time per model per question.

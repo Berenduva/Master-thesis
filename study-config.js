@@ -30,9 +30,10 @@ const STUDY = {
   estimatedMinutes: 25,                            // TODO: update after the pilot
   completionCode: "",                              // optional, e.g. for SONA / Prolific
 
-  // BETA: true = show the researcher view (live log + measures) next to the study,
-  // e.g. to demo it to your supervisor. Set to false before real data collection.
-  beta: true,
+  // >>> BETA SWITCH <<<  true = EVERYONE sees the researcher view (live log + measures)
+  // next to the study, e.g. for a demo on GitHub Pages. MUST be false for real participants.
+  // With beta: false the researcher can still open the view with ?debug=1 in the address.
+  beta: false,
 
   // Consent and debrief are done in Qualtrics. Set to true to show them in the app as well.
   showConsent: false,
@@ -49,7 +50,8 @@ const STUDY = {
   thinkingMs: 1500,      // how long the thinking dots show (ms)
   typingMsPerChar: 25,   // typing speed (ms per character); 0 = show the answer at once
 
-  // Hovers on a model shorter than this are logged but not counted as "looked at".
+  // Hovers on a model (or on its answer list) shorter than this are logged as "short"
+  // but not counted as "looked at" in the trial summary.
   hoverThresholdMs: 400
 };
 
@@ -111,13 +113,13 @@ const TEXTS = {
 
   // Shown after block 1.
   breakScreen: `
-      <p>You have finished part 1. Thank you!</p>
+      <p>You have finished Part 1. Thank you!</p>
       <p><strong>Please go back to the questionnaire now</strong> and leave this window open.
-      When the questionnaire tells you to, come back here and continue with part 2.</p>`,
+      When the questionnaire tells you to, come back here and continue with Part 2.</p>`,
 
   // Shown after block 2 (when showDebrief is false).
   endScreen: `
-      <p>You have finished part 2. Thank you!</p>
+      <p>You have finished Part 2. Thank you!</p>
       <p><strong>Please go back to the questionnaire</strong> to complete the last questions.</p>`,
 
   debrief: `

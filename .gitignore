@@ -4,3 +4,6 @@ data/
 # Python
 __pycache__/
 *.pyc
+
+# Test runs (python server.py --data test_data)
+test_data/

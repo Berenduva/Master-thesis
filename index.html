@@ -28,6 +28,10 @@
   Run `python server.py` and open http://localhost:8000.
   Researcher URL options: ?pid=P012  ?group=P2  ?debug=1  (see server.py)
 
+  RESUME: after a reload or closed window during the break or Part 2, choose
+  "Resume at Part 2" on the setup screen with the same participant number and
+  group; only the Part 2 questions not yet answered are shown (see README.md).
+
   BETA MODE: while STUDY.beta is true (study-config.js), everyone sees the
   researcher view beside the study: a live event log (hovers in seconds,
   details, decisions) and a table with the measures so far.
@@ -42,9 +46,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>AI Answers Study</title>
+<link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- Web fonts load in the background (media="print" → "all" once loaded), so they never block the page.
+     Offline, or if Google Fonts is blocked, the fallback fonts in --f-display / --f-body / --f-mono are used. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 /* ===========================================================================
    DESIGN TOKENS — colours and fonts in one place; dark mode follows the OS
@@ -172,16 +179,22 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .model .pct { font-family: var(--f-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .model .meter { height: 6px; min-width: 0; }
 .model .typical { grid-column: 2 / -1; font-size: 0.8rem; color: var(--muted); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.peek { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 0.86rem; min-height: 74px; }
-.peek .hint { color: var(--muted); }
-.peek h4 { margin: 0 0 6px; font-size: 0.86rem; }
-.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-@media (max-width: 520px) { .split { grid-template-columns: 1fr; } }
+/* The answer list ("peek") is small until the first model is shown; from then on it has a
+   FIXED height (.filled), so moving between models never makes the page jump (the Accept /
+   Decline buttons stay in place). Each column scrolls on its own. */
+.peek { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 0.86rem; min-height: 44px; display: flex; flex-direction: column; contain: layout paint; }
+.peek.filled { height: 270px; }
+.peek .hint { color: var(--muted); margin: auto; text-align: center; }
+.peek h4 { margin: 0 0 6px; font-size: 0.86rem; flex: none; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; }
+@media (max-width: 520px) { .split { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } .peek.filled { height: 360px; } }
+.split .col { display: flex; flex-direction: column; min-height: 0; }
 .split h5 { margin: 0; font-size: 0.82rem; }
 .split .yes h5 { color: var(--good); }
 .split .no h5 { color: var(--bad); }
 .split .sub { margin: 0 0 4px; font-size: 0.72rem; color: var(--muted); }
-.split ol { margin: 0; padding-left: 22px; font-size: 0.8rem; line-height: 1.45; max-height: 280px; overflow-y: auto; }
+.split ol { margin: 0; padding-left: 22px; font-size: 0.8rem; line-height: 1.45; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.peek .unclear { flex: none; margin: 6px 0 0; }
 .split ol li { margin-bottom: 4px; }
 .split ol li::marker { color: var(--muted); font-family: var(--f-mono); font-size: 0.72rem; }
 .split .none { margin: 0; font-size: 0.8rem; color: var(--muted); }
@@ -197,6 +210,11 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .groups input { accent-color: var(--accent); width: 17px; height: 17px; margin: 0; }
 .groups .g { font: 600 0.95rem var(--f-mono); }
 .groups .head span:first-child { width: 17px; }
+.modes { display: grid; gap: 6px; }
+.modes label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 0.92rem; }
+.modes input { accent-color: var(--accent); width: 17px; height: 17px; margin: 3px 0 0; flex: none; }
+.notice { background: var(--warn-soft); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; display: flex; flex-direction: column; gap: 8px; }
+.notice .actions { gap: 8px; }
 .groups .head { border: 0; padding: 0 12px; cursor: default; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
 @media (max-width: 520px) { .groups label { grid-template-columns: auto 40px minmax(0,1fr); } .groups label span:last-child { grid-column: 3; } }
 
@@ -260,7 +278,7 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <dl id="debug-info"></dl>
 
     <h3>Event log (current question)</h3>
-    <p class="note">Times are seconds since the question appeared. Decision time in the table counts from when the full answer was visible. Hovers count only after 400 ms on a model.</p>
+    <p class="note">Times are seconds since the question appeared. Decision time in the table counts from when the full answer was visible. Hovers (on a model or its answer list) count only from 400 ms.</p>
     <div class="log" id="debug-log"></div>
 
     <h3>Measures so far</h3>
@@ -289,6 +307,18 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
   </div>
 </div>
 
+<!-- "Continue to Part 2" confirmation (in-page, so the break button is never clicked by accident) -->
+<div class="overlay" id="overlay-part2" hidden>
+  <div class="card card-body" role="dialog" aria-modal="true" aria-labelledby="part2-title">
+    <h2 class="title" id="part2-title">Continue to Part 2?</h2>
+    <p class="prose">Only continue when the questionnaire tells you to go on with Part 2.</p>
+    <div class="actions">
+      <button type="button" class="btn" id="part2-back">Not yet, go back</button>
+      <button type="button" class="btn primary" id="part2-go">Yes, start Part 2</button>
+    </div>
+  </div>
+</div>
+
 <script src="study-config.js"></script>
 <script src="questions.js"></script>
 <script>
@@ -307,6 +337,31 @@ const DEBUG = params.get("debug") === "1" || STUDY.beta === true;
 const ACTIVE_QUESTIONS = (STUDY.activeQuestions && STUDY.activeQuestions.length)
   ? QUESTIONS.filter(q => STUDY.activeQuestions.includes(q.id))
   : QUESTIONS;
+
+/** Run fn on the FIRST click only: the button is disabled at once, so a double click
+    can never skip a screen or log something twice. */
+function onceClick(btn, fn) {
+  btn.onclick = () => { if (btn.disabled) return; btn.disabled = true; fn(); };
+}
+
+/** Show an in-page dialog (overlay). Escape = the first ("cancel") button.
+    Focus moves into the dialog and goes back to where it was when the dialog closes. */
+function openOverlay(id, cancelBtn) {
+  activeTrial && activeTrial.endHover();         // a hover never keeps running under a dialog
+  const ov = $(id), back = document.activeElement;
+  ov.hidden = false;
+  ov.querySelectorAll(".btn").forEach(b => b.disabled = false);
+  cancelBtn.focus();
+  ov.onkeydown = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); cancelBtn.click(); }
+    if (e.key === "Tab") {                       // keep keyboard focus inside the dialog
+      const btns = [...ov.querySelectorAll(".btn")], k = btns.indexOf(document.activeElement);
+      e.preventDefault();
+      btns[(k + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+    }
+  };
+  return () => { ov.hidden = true; ov.onkeydown = null; if (back && document.contains(back)) back.focus(); };
+}
 
 /** Fisher–Yates shuffle (returns a new array). */
 function shuffle(arr) {
@@ -353,7 +408,8 @@ const S = {
   online: true,          // false when server.py could not be reached
   t0: performance.now(), // session start (for t_session_ms)
   step: 0,               // index into FLOW
-  shownQuestions: []     // every question shown, for the debrief list
+  shownQuestions: [],    // every question shown, for the debrief list
+  done: { 1: [], 2: [] } // question IDs already answered per block (only filled when a session is resumed)
 };
 const ctx = { phase: "setup", group: "", block: "", set: "", condition: "", trial: "", question_id: "", ai_correct: "", trialStart: null };
 
@@ -372,6 +428,8 @@ const FLOW = [
 ];
 /** Condition ("baseline" / "confidence") and question set ("A" / "B") of block 1 or 2 for this participant. */
 const blockPlan = (block) => { const [condition, set] = GROUPS[S.group][block - 1]; return { condition, set }; };
+/** Number of questions in block 1 or 2 (15 with the current sets). */
+const blockSize = (block) => ACTIVE_QUESTIONS.filter(q => q.set === blockPlan(block).set).length;
 
 /* ===========================================================================
    2. DATA LOGGING
@@ -393,7 +451,10 @@ const Outbox = {
     while (this.items.length) {
       const it = this.items[0];
       try {
-        const res = await fetch(it.route, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(it.body) });
+        // keepalive: a request that is under way still arrives if the tab is closed meanwhile
+        // (browsers allow this only for small requests, < 64 KB, which all of ours are).
+        const body = JSON.stringify(it.body);
+        const res = await fetch(it.route, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: body.length < 60000 });
         if (!res.ok) throw new Error(res.status);
         this.items.shift();
         this.failures = 0;
@@ -408,12 +469,15 @@ const Outbox = {
     this.busy = false;
     if (S.online) hideBanner();
   },
-  /** Last-chance send when the tab is closed (sendBeacon survives page unload). */
+  /** Last-chance send when the tab is closed (sendBeacon survives page unload).
+      The request that is already under way (busy) is skipped: it has keepalive and
+      would otherwise arrive twice. */
   beaconAll() {
     if (!S.online || !navigator.sendBeacon) return;
     flushEvents();
-    for (const it of this.items) navigator.sendBeacon(it.route, new Blob([JSON.stringify(it.body)], { type: "application/json" }));
-    this.items = [];
+    const waiting = this.busy ? this.items.slice(1) : this.items;
+    for (const it of waiting) navigator.sendBeacon(it.route, new Blob([JSON.stringify(it.body)], { type: "application/json" }));
+    this.items = this.busy ? this.items.slice(0, 1) : [];
   }
 };
 
@@ -447,7 +511,9 @@ function logEvent(event, { target = "", value = "", duration_ms = "" } = {}, urg
 function flushEvents() {
   clearTimeout(eventTimer); eventTimer = null;
   if (!eventBuffer.length || !S.pid) return;
-  Outbox.add("/api/events", { pid: S.pid, events: eventBuffer.splice(0) });
+  // Events logged before the session existed (the setup screen) get the session ID now.
+  const rows = eventBuffer.splice(0).map(r => r.session_id ? r : { ...r, session_id: S.session_id });
+  Outbox.add("/api/events", { pid: S.pid, events: rows });
 }
 
 function saveTrial(row) {
@@ -487,16 +553,31 @@ function init() {
   go(0);
 }
 
-async function startSession(pid) {
-  const req = { pid, group: S.group, screen: `${screen.width}x${screen.height}` };
+/**
+ * Register the session with server.py.
+ *   mode "new"     start at Part 1 (force = start even if the participant number exists)
+ *   mode "resume"  continue an existing participant at Part 2
+ * Returns null when the session has started, or the server's refusal
+ * ({ error: "pid_exists" | "unknown_pid" | "group_mismatch" | "offline", … }) so the
+ * setup screen can explain it. A refusal writes nothing.
+ */
+async function startSession(pid, mode = "new", force = false) {
+  const req = { pid, group: S.group, mode, force, screen: `${screen.width}x${screen.height}` };
+  let data = null;
   try {
     const res = await fetch("/api/session", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error);
+    data = await res.json();
+  } catch (e) {
+    data = null;                                   // server not reachable → offline fallback below
+  }
+  if (data && !data.ok) return data;               // refused (nothing was written)
+  if (!data && mode === "resume") return { error: "offline" };
+  if (data) {
     Object.assign(S, { pid: data.pid, session_id: data.session_id });
     BACKUP.session = data;
-    if (data.pid_reused) showBanner(`Note for the researcher: participant ID ${data.pid} was used before. Data will be appended to the same files.`);
-  } catch (e) {
+    if (data.pid_reused) showBanner(`Note for the researcher: participant number ${data.pid} was used before. Data are appended to the same files.`);
+    if (data.resumed) S.done = { 1: data.history.done["1"], 2: data.history.done["2"] };
+  } else {
     // Offline fallback: the study still works, data are kept for a download at the end.
     S.online = false;
     Object.assign(S, { pid: pid || "LOCAL-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
@@ -513,7 +594,13 @@ async function startSession(pid) {
   logEvent("session_start", { target: navigator.userAgent }, true);
   logEvent("group_assigned", { target: S.group,
     value: GROUPS[S.group].map(([c, s], k) => `block${k + 1}:${c === "confidence" ? "Conf" : "Base"}-${s}`).join(" ") }, true);
+  if (mode === "resume") {
+    // value: what was already answered before the reload (these questions are not shown again).
+    logEvent("session_resumed", { target: "part2",
+      value: [1, 2].map(b => `block${b} done ${S.done[b].length}/${blockSize(b)}: ${S.done[b].join(" ")}`).join(" | ") }, true);
+  }
   renderDebugInfo();
+  return null;
 }
 
 /* ===========================================================================
@@ -536,6 +623,14 @@ function go(step) {
   renderDebugInfo();
 }
 const nextStep = () => go(S.step + 1);
+
+/** After "Resume at Part 2": back to the break screen if Part 2 had not started yet,
+    otherwise to the Part 2 instructions (the remaining questions follow). */
+function resumeStep() {
+  const find = (id, block) => FLOW.findIndex(s => s.id === id && (block == null || s.block === block));
+  if (S.done[2].length >= blockSize(2)) return go(FLOW.length - 1);   // Part 2 was already complete
+  go(S.done[2].length ? find("intro", 2) : find("pause"));
+}
 
 /* ===========================================================================
    5. SCREENS
@@ -565,19 +660,58 @@ const SCREENS = {
               <span class="g">${g}</span><span>${desc(g)[0]}</span><span>${desc(g)[1]}</span></label>`).join("")}
         </div>
       </div>
+      <div class="field">
+        <span class="label-sm">Start</span>
+        <div class="modes" role="radiogroup">
+          <label><input type="radio" name="mode" value="new" checked>
+            <span><strong>New participant</strong>: start at Part 1.</span></label>
+          <label><input type="radio" name="mode" value="resume">
+            <span><strong>Resume at Part 2</strong>: the window was reloaded or closed during the break or Part 2.
+            Use the same participant number and group. Questions already answered are not shown again; nothing is overwritten.</span></label>
+        </div>
+      </div>
       <p class="error" id="setup-error" hidden></p>
+      <div class="notice" id="setup-notice" hidden></div>
       <div class="actions"><button type="button" class="btn primary" id="setup-go">Start the study</button></div>`;
-    $("setup-go").onclick = async () => {
+
+    const err = $("setup-error"), notice = $("setup-notice"), goBtn = $("setup-go");
+    const mode = () => document.querySelector('input[name="mode"]:checked').value;
+    const showError = (text) => { err.textContent = text; err.hidden = false; };
+    document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener("change", () => {
+      goBtn.textContent = mode() === "resume" ? "Resume at Part 2" : "Start the study";
+      err.hidden = true; notice.hidden = true;
+    }));
+
+    /* Start (or resume). force = start a NEW session even though the number exists. */
+    const start = async (force = false) => {
       const pid = $("pid-input").value.trim();
       const g = document.querySelector('input[name="group"]:checked');
-      const err = $("setup-error");
-      if (!g) { err.textContent = "Choose a group (P1–P4)."; err.hidden = false; return; }
-      if (pid && !/^[A-Za-z0-9_-]{1,32}$/.test(pid)) { err.textContent = "Use only letters, numbers, - and _ in the participant number."; err.hidden = false; return; }
-      $("setup-go").disabled = true;
+      err.hidden = true; notice.hidden = true;
+      if (!g) return showError("Choose a group (P1–P4).");
+      if (pid && !/^[A-Za-z0-9_-]{1,32}$/.test(pid)) return showError("Use only letters, numbers, - and _ in the participant number.");
+      if (mode() === "resume" && !pid) return showError("To resume, enter the participant number of the session you want to continue.");
+      goBtn.disabled = true;
       S.group = g.value;
-      await startSession(pid);
-      nextStep();
+      const refused = await startSession(pid, mode(), force);
+      if (!refused) return mode() === "resume" ? resumeStep() : nextStep();
+      goBtn.disabled = false;
+      if (refused.error === "unknown_pid") return showError(`Participant number ${pid} was not found in data/participants.csv, so it cannot be resumed. Check the number.`);
+      if (refused.error === "group_mismatch") return showError(`${pid} was in group ${refused.previous_group}, not ${S.group}. Choose group ${refused.previous_group} to resume.`);
+      if (refused.error === "offline") return showError("Resuming needs the study server. Start it with “python server.py” and reload this page.");
+      if (refused.error === "pid_exists") {
+        const h = refused.history || { done: { 1: [], 2: [] }, statuses: [] };
+        notice.innerHTML = `<span><strong>Participant number ${esc(pid)} already exists</strong>
+          (group ${esc(h.group || "?")}; status so far: ${esc(h.statuses.join(", ") || "–")};
+          answered: Part 1 ${h.done["1"].length}, Part 2 ${h.done["2"].length}).
+          To continue that session, choose “Resume at Part 2”. Otherwise use a new number.</span>
+          <div class="actions"><button type="button" class="btn" id="force-new">Start a new session with ${esc(pid)} anyway</button></div>`;
+        notice.hidden = false;
+        onceClick($("force-new"), () => start(true));
+        return;
+      }
+      showError("Could not start: " + (refused.error || "unknown error"));
     };
+    goBtn.onclick = () => { if (!goBtn.disabled) start(false); };
   },
 
   /* ---- Information + informed consent ----------------------------------- */
@@ -595,31 +729,32 @@ const SCREENS = {
       </div>`;
     const boxes = [...document.querySelectorAll(".checks input")];
     boxes.forEach(b => b.addEventListener("change", () => { $("agree").disabled = !boxes.every(x => x.checked); }));
-    $("agree").onclick = () => {
+    onceClick($("agree"), () => {
       saveResponses(TEXTS.consentChecks.map((t, i) => ({ instrument: "consent", item_id: `c${i + 1}`, item_text: t, value: 1 })));
       logEvent("consent_given", {}, true);
       nextStep();
-    };
-    $("disagree").onclick = () => { logEvent("consent_declined", {}, true); SCREENS.withdrawn("declined"); };
+    });
+    onceClick($("disagree"), () => { logEvent("consent_declined", {}, true); SCREENS.withdrawn("declined"); });
   },
 
   /* ---- Instructions before each block ------------------------------------ */
   intro(step) {
-    const { condition, set } = blockPlan(step.block);
-    const n = ACTIVE_QUESTIONS.filter(q => q.set === set).length;
+    const { condition } = blockPlan(step.block);
+    const n = blockSize(step.block) - S.done[step.block].length;   // fewer only after a resume
     $("screen").innerHTML = `
       <span class="label-sm">Part ${step.block} of 2 · ${n} questions</span>
       <h2 class="title">${step.block === 1 ? "How this works" : "Part 2"}</h2>
       <div class="prose">${condition === "confidence" ? TEXTS.introConf : TEXTS.introBase}</div>
-      <div class="actions"><button type="button" class="btn primary" id="go">Start part ${step.block}</button></div>`;
-    $("go").onclick = nextStep;
+      <div class="actions"><button type="button" class="btn primary" id="go">Start Part ${step.block}</button></div>`;
+    onceClick($("go"), nextStep);
   },
 
   /* ---- One block of questions --------------------------------------------- */
   trials(step) {
     const plan = planTrials(step.block);
     // Store the full plan once, so the random order can be checked later.
-    logEvent("trial_plan", { value: plan.map(p => p.q.id).join(" ") }, true);
+    // (After a resume: only the questions still to do; target says how many were done before.)
+    logEvent("trial_plan", { target: plan.offset ? `resumed_after_${plan.offset}` : "", value: plan.map(p => p.q.id).join(" ") }, true);
     runTrial(plan, 0, step.block);
   },
 
@@ -629,8 +764,18 @@ const SCREENS = {
     $("screen").innerHTML = `
       <h2 class="title">Part 1 finished</h2>
       <div class="prose">${TEXTS.breakScreen}</div>
-      <div class="actions"><button type="button" class="btn primary" id="go">Continue to part 2</button></div>`;
-    $("go").onclick = () => { logEvent("pause_end", { duration_ms: performance.now() - t }, true); nextStep(); };
+      <div class="actions"><button type="button" class="btn primary" id="go">Continue to Part 2</button></div>`;
+    // A short in-page confirmation, so Part 2 is never started by accident.
+    $("go").onclick = () => {
+      logEvent("part2_confirm_shown", {}, true);
+      const close = openOverlay("overlay-part2", $("part2-back"));
+      $("part2-back").onclick = () => { close(); logEvent("part2_confirm_cancelled", {}, true); };
+      onceClick($("part2-go"), () => {
+        close();
+        logEvent("pause_end", { duration_ms: performance.now() - t }, true);   // break length
+        nextStep();
+      });
+    };
   },
 
   /* ---- End (consent/debrief are in Qualtrics) ------------------------------ */
@@ -671,15 +816,15 @@ const SCREENS = {
   stopConfirm() {
     // Shown as an overlay, so cancelling returns to exactly the same point (mid-question included).
     logEvent("stop_clicked", {}, true);
-    const ov = $("overlay");
-    ov.hidden = false;
-    $("cont").focus();
-    $("cont").onclick = () => { ov.hidden = true; logEvent("stop_cancelled", {}, true); };
-    $("quit").onclick = () => { ov.hidden = true; SCREENS.withdrawn("withdrew"); };
+    const close = openOverlay("overlay", $("cont"));
+    $("cont").onclick = () => { close(); logEvent("stop_cancelled", {}, true); };
+    onceClick($("quit"), () => { close(); SCREENS.withdrawn("withdrew"); });
   },
 
   withdrawn(status) {
     skipBlock = null;
+    activeTrial && activeTrial.endHover();
+    activeTrial = null;
     trialToken++;
     saveStatus(status);
     studyRunning = false;
@@ -704,31 +849,38 @@ const SCREENS = {
    =========================================================================== */
 function planTrials(block) {
   const { condition, set } = blockPlan(block);
-  return shuffle(ACTIVE_QUESTIONS.filter(q => q.set === set)).map(q => ({ q, condition }));
+  const done = S.done[block];                     // empty, except after "Resume at Part 2"
+  const plan = shuffle(ACTIVE_QUESTIONS.filter(q => q.set === set && !done.includes(q.id))).map(q => ({ q, condition }));
+  plan.offset = done.length;                      // trial numbers continue after the questions already answered
+  return plan;
 }
 
 /* ===========================================================================
    6. ONE TRIAL (question screen)
    ---------------------------------------------------------------------------
    Logged events per trial:
-     trial_shown, details_open / details_close, hover (every hover, with
-     duration; value "counted" if ≥ hoverThresholdMs), model_click,
-     decision.
+     trial_shown, answer_shown, details_open / details_close,
+     hover      pointing at a model row (or keyboard focus on it)
+     hover_list pointing at the list of that model's 20 answers
+                (both with duration; value "counted" if ≥ hoverThresholdMs,
+                otherwise "short"; target = the model)
+     model_click, decision.
    On the decision a summary row is written to Pxxx_trials.csv.
    =========================================================================== */
 function runTrial(list, i, block) {
-  if (i >= list.length) { nextStep(); return; }
+  if (i >= list.length) { activeTrial = null; nextStep(); return; }
   const { q, condition } = list[i];
   const conf = condition === "confidence";
   const score = overallConfidence(q);
+  const nr = list.offset + i + 1;                  // question number within the block (1–15)
   S.shownQuestions.push(q);
 
   // Per-trial bookkeeping, turned into the summary row at the decision.
   const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
-              pinned: null, activeHover: null, decided: false, readyAt: null };
+              peekModel: null, activeHover: null, decided: false, readyAt: null };
 
-  Object.assign(ctx, { phase: "trials", condition, trial: i + 1, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
-  $("step-label").textContent = `Part ${block} · Question ${i + 1} of ${list.length}`;
+  Object.assign(ctx, { phase: "trials", condition, trial: nr, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
+  $("step-label").textContent = `Part ${block} · Question ${nr} of ${list.offset + list.length}`;
   renderDebugInfo();
 
   // One row per model: name, agreement bar + %, and how often it said Yes / No.
@@ -754,7 +906,7 @@ function runTrial(list, i, block) {
         ${conf ? `
         <div class="conf" id="conf" hidden>
           <div class="conf-row">
-            <span class="label-sm">Confidence</span>
+            <span class="label-sm">Confidence score</span>
             <span class="conf-num">${score}%</span>
             <span class="meter" aria-hidden="true"><i style="width:${score}%"></i></span>
           </div>
@@ -768,8 +920,8 @@ function runTrial(list, i, block) {
       </div>
     </div>
     <div class="actions" id="trial-actions">
-      <button type="button" class="btn accept" id="accept" disabled>Accept answer</button>
-      <button type="button" class="btn decline" id="decline" disabled>Decline answer</button>
+      <button type="button" class="btn accept" id="accept" disabled>Accept</button>
+      <button type="button" class="btn decline" id="decline" disabled>Decline</button>
     </div>`;
 
   logEvent("trial_shown", { value: conf ? `confidence ${score}%` : "baseline" }, true);
@@ -818,11 +970,26 @@ function runTrial(list, i, block) {
     logEvent(open ? "details_open" : "details_close");
   };
 
-  /* -- Hover tracking on each model row ------------------------------------ */
-  function startHover(name) {
+  /* -- Hover tracking ------------------------------------------------------
+     Pointing at a model row (or focusing it with the keyboard) shows that model's
+     answers in the list below and starts a "hover". The list keeps showing the
+     last model, so the participant can move the mouse onto it and scroll; time
+     spent on the list is logged as "hover_list" for that model. Only one hover
+     runs at a time, and it always ends (and is logged) when the pointer leaves,
+     the details close, a dialog opens, the tab is hidden or a decision is made. */
+  function showPeek(name) {
+    if (!name || name === T.peekModel) return;   // already shown: nothing to redraw (instant, keeps scroll position)
+    T.peekModel = name;
+    $("peek").innerHTML = peekHTML(q, name);
+    $("peek").classList.add("filled");
+    document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === name));
+  }
+  function startHover(name, where) {
+    const h = T.activeHover;
+    if (h && h.name === name && h.where === where) return;   // same hover continues (e.g. mouse + focus on one row)
     endHover();
-    T.activeHover = { name, start: performance.now() };
-    showPeek(q, name);
+    T.activeHover = { name, where, start: performance.now() };
+    if (where === "model") showPeek(name);
   }
   function endHover() {
     const h = T.activeHover;
@@ -831,22 +998,27 @@ function runTrial(list, i, block) {
     const d = performance.now() - h.start;
     const counted = d >= STUDY.hoverThresholdMs;
     if (counted) { T.hovers++; T.hovered.add(h.name); T.hoverTotal += d; }
-    logEvent("hover", { target: h.name, value: counted ? "counted" : "short", duration_ms: d });
-    showPeek(q, T.pinned);
+    logEvent(h.where === "list" ? "hover_list" : "hover", { target: h.name, value: counted ? "counted" : "short", duration_ms: d });
   }
+  /** End the running hover only if it is this one (a late mouseleave/blur must not end a newer hover). */
+  const endHoverOf = (name, where) => { const h = T.activeHover; if (h && h.name === name && h.where === where) endHover(); };
   document.querySelectorAll(".model").forEach(btn => {
     const name = btn.dataset.model;
-    btn.addEventListener("mouseenter", () => startHover(name));
-    btn.addEventListener("mouseleave", endHover);
-    btn.addEventListener("focus", () => startHover(name));   // keyboard users
-    btn.addEventListener("blur", endHover);
-    btn.addEventListener("click", () => {                     // click pins a model (also works on touch screens)
-      T.pinned = T.pinned === name ? null : name;
-      document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === T.pinned));
-      showPeek(q, T.pinned || name);
-      logEvent("model_click", { target: name, value: T.pinned ? "pinned" : "unpinned" });
+    btn.addEventListener("mouseenter", () => startHover(name, "model"));
+    btn.addEventListener("mouseleave", () => endHoverOf(name, "model"));
+    btn.addEventListener("focus", () => startHover(name, "model"));   // keyboard users
+    btn.addEventListener("blur", () => endHoverOf(name, "model"));
+    btn.addEventListener("click", () => {                              // click shows a model (also works on touch screens)
+      showPeek(name);
+      logEvent("model_click", { target: name });
     });
   });
+  const peek = $("peek");
+  if (peek) {
+    peek.addEventListener("mouseenter", () => { if (T.peekModel) startHover(T.peekModel, "list"); });
+    peek.addEventListener("mouseleave", () => { if (T.activeHover && T.activeHover.where === "list") endHover(); });
+  }
+  activeTrial = { endHover };
 
   /* -- Decision ------------------------------------------------------------ */
   const decide = (choice) => {
@@ -858,7 +1030,7 @@ function runTrial(list, i, block) {
     logEvent("decision", { value: choice, duration_ms: rt }, true);
     saveTrial({
       session_id: S.session_id, group: S.group, block, set: q.set, condition,
-      trial: i + 1, question_id: q.id, part: q.part, ai_answer: q.answer, ai_correct: q.correct ? 1 : 0,
+      trial: nr, question_id: q.id, part: q.part, ai_answer: q.answer, ai_correct: q.correct ? 1 : 0,
       overall_confidence: score,                       // also stored in baseline (score existed, but was hidden)
       decision: choice,
       appropriate: (choice === "accept") === q.correct ? 1 : 0,
@@ -872,13 +1044,14 @@ function runTrial(list, i, block) {
     });
     // No feedback on correctness (that would teach participants which answers are wrong).
     $("screen").querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
-    setTimeout(() => runTrial(list, i + 1, block), 350);
+    activeTrial = null;
+    setTimeout(() => { if (alive()) runTrial(list, i + 1, block); }, 350);   // not if the study was stopped meanwhile
   };
   $("accept").onclick = () => decide("accept");
   $("decline").onclick = () => decide("decline");
 
   // Debug: let the researcher jump to the end of this block.
-  skipBlock = () => { trialToken++; logEvent("debug_skip", {}, true); nextStep(); };
+  skipBlock = () => { endHover(); activeTrial = null; trialToken++; logEvent("debug_skip", {}, true); nextStep(); };
 }
 
 /** Text in the "peek" box below the model list. */
@@ -895,9 +1068,8 @@ function peekHTML(q, name) {
       <div class="col yes"><h5>✓ “${esc(q.answer)}” · ${same.length} (${Math.round(same.length / N * 100)}%)</h5><p class="sub">Same answer as shown</p>${list(same)}</div>
       <div class="col no"><h5>✗ “${esc(opposite(q.answer))}” · ${other.length} (${Math.round(other.length / N * 100)}%)</h5><p class="sub">Opposite answer</p>${list(other)}</div>
     </div>
-    ${unclear.length ? `<p class="sub" style="margin-top:8px">${unclear.length} answer(s) gave no clear Yes or No and are not counted.</p>` : ""}`;
+    ${unclear.length ? `<p class="sub unclear">${unclear.length} answer(s) gave no clear Yes or No and are not counted.</p>` : ""}`;
 }
-function showPeek(q, name) { const p = $("peek"); if (p) p.innerHTML = peekHTML(q, name); }
 
 /* ===========================================================================
    7. BACKUP DOWNLOAD (only shown when data could not be sent)
@@ -920,6 +1092,7 @@ function showBackupIfNeeded(needed) {
    8. RESEARCHER DEBUG PANEL (?debug=1)
    =========================================================================== */
 let skipBlock = null;
+let activeTrial = null;   // { endHover } of the question on screen, so a hover can be closed from outside (dialog, hidden tab)
 let trialToken = 0;   // increases with every new question; pending typing timers of older questions stop
 function renderDebugInfo() {
   if (!DEBUG) return;
@@ -939,13 +1112,17 @@ function describeEvent(r) {
     case "details_open":    return "Opened details";
     case "details_close":   return "Closed details";
     case "hover":           return r.value === "counted" ? `Hovered ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on ${r.target} (${sec(r.duration_ms)}, not counted)`;
-    case "model_click":     return `Clicked ${r.target} (${r.value})`;
+    case "hover_list":      return r.value === "counted" ? `Read the answer list of ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on the answer list of ${r.target} (${sec(r.duration_ms)}, not counted)`;
+    case "model_click":     return `Clicked ${r.target}`;
     case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} ${sec(r.duration_ms)} after the answer appeared`;
     case "screen_shown":    return `Screen: ${r.target}`;
     case "consent_given":   return "Consent given";
-    case "trial_plan":      return `Part ${r.block} (${r.condition === "confidence" ? "with score" : "without score"}, set ${r.set}), random order: ${r.value}`;
+    case "trial_plan":      return `Part ${r.block} (${r.condition === "confidence" ? "with score" : "without score"}, set ${r.set}), random order${r.target ? " of the remaining questions" : ""}: ${r.value}`;
     case "group_assigned":  return `Group ${r.target}: ${r.value}`;
     case "pause_end":       return `Break finished after ${sec(r.duration_ms)}`;
+    case "part2_confirm_shown":     return "Clicked “Continue to Part 2” (asked to confirm)";
+    case "part2_confirm_cancelled": return "Did not confirm Part 2 yet";
+    case "session_resumed": return `Session resumed at Part 2 (${r.value})`;
     case "tab_hidden":      return "Participant left the tab";
     case "tab_visible":     return "Participant came back to the tab";
     default:                return [r.event, r.target, r.value].filter(Boolean).join(" · ");
@@ -1010,8 +1187,12 @@ let studyRunning = true;
 // Warn before closing/reloading mid-study (a reload would start a new participant).
 window.addEventListener("beforeunload", (e) => { if (studyRunning && !DEBUG) { e.preventDefault(); e.returnValue = ""; } });
 // Log tab switches: leaving the tab may mean looking answers up elsewhere.
-document.addEventListener("visibilitychange", () => logEvent(document.hidden ? "tab_hidden" : "tab_visible", {}, true));
-window.addEventListener("pagehide", () => { logEvent("page_closed"); Outbox.beaconAll(); });
+// A running hover is closed first, so time away from the tab is never counted as hover time.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && activeTrial) activeTrial.endHover();
+  logEvent(document.hidden ? "tab_hidden" : "tab_visible", {}, true);
+});
+window.addEventListener("pagehide", () => { activeTrial && activeTrial.endHover(); logEvent("page_closed"); Outbox.beaconAll(); });
 
 init();
 </script>
