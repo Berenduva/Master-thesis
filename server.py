@@ -28,7 +28,7 @@ How to run
 
 Useful URL parameters for the researcher (add to the address):
     ?pid=P012        pre-fill the participant number on the setup screen
-    ?group=P2        pre-select the group on the setup screen
+    ?group=2         pre-select Group 2 on the setup screen
     ?debug=1         show the live event log next to the participant screen
 
 Resuming: if the browser window was reloaded or closed during the break or part 2,
@@ -68,7 +68,7 @@ PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 # this script) is refused, so participants can never download other people's data.
 STATIC_ALLOWED = re.compile(r"^/(index\.html|study-config\.js|questions\.js|favicon\.ico|assets/[\w\-./]+)?$")
 
-# The researcher picks the participant's group (P1–P4) on the setup screen; the group
+# The researcher picks the participant's group (Group 1–4, stored as 1–4) on the setup screen; the group
 # fixes which block is shown with / without the confidence score and with which
 # question set (GROUPS in study-config.js). Group, block and set are saved per row.
 
@@ -270,7 +270,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     print(f"  -> resume refused: participant {pid} not found")
                     return self.send_json({"ok": False, "error": "unknown_pid"})
                 if history["group"] and history["group"] != group:
-                    print(f"  -> resume refused: {pid} was in group {history['group']}, not {group}")
+                    print(f"  -> resume refused: {pid} was in Group {history['group']}, not Group {group}")
                     return self.send_json({"ok": False, "error": "group_mismatch",
                                            "previous_group": history["group"]})
             elif reused and not body.get("force"):
@@ -289,10 +289,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS,
                         [{**session, "status": "resumed" if resume else "started", "server_time": now_iso()}])
         if resume:
-            print(f"  -> participant {pid} RESUMED at part 2 (group {group}; answered so far: "
+            print(f"  -> participant {pid} RESUMED at part 2 (Group {group}; answered so far: "
                   f"part 1 {len(history['done']['1'])}, part 2 {len(history['done']['2'])})")
         else:
-            print(f"  -> participant {pid} started (group {group or '?'})"
+            print(f"  -> participant {pid} started (Group {group or '?'})"
                   + ("  [WARNING: this participant number was used before; "
                      "data are appended to the same files]" if reused else ""))
         return self.send_json({

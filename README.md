@@ -24,15 +24,15 @@ This opens http://localhost:8000. Nothing needs to be installed besides Python 3
 The first screen is for the researcher:
 
 1. **Participant number**: the same as in Qualtrics. Leave empty to get the next free number (P001, P002, …).
-2. **Group** (P1–P4). The screen only shows the group name, not which part has the confidence score,
+2. **Group** (Group 1–4; stored as 1–4 in the `group` column). The screen only shows the group name, not which part has the confidence score,
    so a participant who sees the screen learns nothing about the design. What each group means:
 
    | Group | First block | Second block |
    |---|---|---|
-   | P1 | Base, set A | Conf, set B |
-   | P2 | Base, set B | Conf, set A |
-   | P3 | Conf, set A | Base, set B |
-   | P4 | Conf, set B | Base, set A |
+   | Group 1 | Base, set A | Conf, set B |
+   | Group 2 | Base, set B | Conf, set A |
+   | Group 3 | Conf, set A | Base, set B |
+   | Group 4 | Conf, set B | Base, set A |
 
    Base = without confidence score, Conf = with confidence score, "Show details" (agreement per model)
    and pointing at a model to see all 20 of its answers.
@@ -47,7 +47,7 @@ Researcher URL options:
 | Option | Effect |
 |---|---|
 | `?pid=P012` | pre-fill the participant number |
-| `?group=P2` | pre-select the group |
+| `?group=2` | pre-select Group 2 |
 | `?debug=1` | researcher view: live event log, measures, "skip to the end of this part" |
 
 ## Study flow
@@ -104,7 +104,7 @@ starts with the majority answer, is at most two sentences and has no hedging or 
 ## Files
 
 - `index.html` — the participant app (logic and layout)
-- `study-config.js` — settings (incl. the beta switch), groups (P1–P4) and all texts
+- `study-config.js` — settings (incl. the beta switch), groups (Group 1–4) and all texts
 - `questions.js` — the 30 questions and model answers
 - `check_questions.py` — checks `questions.js`
 - `server.py` — local server; writes CSVs to `data/` (ignored by git). `--data test_data` writes to another

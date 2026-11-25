@@ -8,19 +8,19 @@
    are done in Qualtrics.
 
    Design: two blocks of 15 questions. At the start the researcher chooses the
-   participant's group (P1–P4), which fixes the order of the conditions and
+   participant's group (Group 1–4), which fixes the order of the conditions and
    which question set (A or B) goes with which condition:
 
        group   block 1          block 2
-       P1      Base, set A      Conf, set B
-       P2      Base, set B      Conf, set A
-       P3      Conf, set A      Base, set B
-       P4      Conf, set B      Base, set A
+       1       Base, set A      Conf, set B
+       2       Base, set B      Conf, set A
+       3       Conf, set A      Base, set B
+       4       Conf, set B      Base, set A
 
    Base = without confidence score, Conf = with confidence score.
    Within a block the 15 questions are shown in a FIXED order (the order in
    questions.js), the same for every participant (see randomizeOrder below).
-   The setup screen only shows "P1"–"P4", not what each group means, so a
+   The setup screen only shows "Group 1"–"Group 4", not what each group means, so a
    participant who sees it learns nothing about the design.
    ========================================================================== */
 
@@ -63,12 +63,14 @@ const STUDY = {
 };
 
 /* The four groups: [condition, question set] for block 1 and block 2.
+   The key ("1"–"4") is the group number shown on the setup screen as "Group 1" etc.
+   and stored in the "group" column of every CSV file.
    "baseline" = without confidence score, "confidence" = with confidence score. */
 const GROUPS = {
-  P1: [["baseline", "A"], ["confidence", "B"]],
-  P2: [["baseline", "B"], ["confidence", "A"]],
-  P3: [["confidence", "A"], ["baseline", "B"]],
-  P4: [["confidence", "B"], ["baseline", "A"]]
+  "1": [["baseline", "A"], ["confidence", "B"]],
+  "2": [["baseline", "B"], ["confidence", "A"]],
+  "3": [["confidence", "A"], ["baseline", "B"]],
+  "4": [["confidence", "B"], ["baseline", "A"]]
 };
 
 /* --------------------------------------------------------------------------

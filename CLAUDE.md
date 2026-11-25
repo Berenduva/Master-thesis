@@ -37,10 +37,12 @@ appropriately (accept correct answers, decline incorrect ones)?
   Correctness is not manipulated.
 - Two blocks of 15 questions: one without score (baseline), one with score (confidence).
   Four counterbalanced groups, chosen by the researcher on the first screen:
-  P1 Base A -> Conf B, P2 Base B -> Conf A, P3 Conf A -> Base B, P4 Conf B -> Base A.
+  Group 1 Base A -> Conf B, Group 2 Base B -> Conf A, Group 3 Conf A -> Base B,
+  Group 4 Conf B -> Base A (stored as 1-4 in the CSV "group" column; renamed from P1-P4 so it is
+  not confused with participant numbers).
   Question order within a block is FIXED (order in questions.js, same for everyone;
   Berend's choice, 25 Nov 2026; STUDY.randomizeOrder = false). The setup screen shows only
-  P1-P4, not which part has the confidence score (so participants learn nothing about the design).
+  Group 1-4, not which part has the confidence score (so participants learn nothing about the design).
 - Flow: researcher setup (participant number + group) -> instructions -> block 1 -> break
   (participant fills in a Qualtrics questionnaire) -> instructions -> block 2 -> back to Qualtrics.
 - Consent, debrief, demographics, GAAIS-10, Jian trust scale and extra questions are all in
@@ -60,7 +62,7 @@ appropriately (accept correct answers, decline incorrect ones)?
 ## Files
 
 - `index.html` - the participant app: layout, styling and all logic (well commented).
-- `study-config.js` - settings, the groups P1-P4 and all texts.
+- `study-config.js` - settings, the groups (Group 1-4) and all texts.
 - `questions.js` - the 30 questions with all 3,000 model answers (generated from the ChainForge
   export + local Qwen run; Q14 from Confidence_scores_all_models.xlsx). Format per run:
   `[1, "full answer", agrees, invalid?]`.

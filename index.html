@@ -5,7 +5,7 @@
   Master's thesis, Berend de Vries (University of Amsterdam)
 
   Flow (one participant, one sitting):
-    researcher setup (participant number + group P1–P4)
+    researcher setup (participant number + Group 1–4)
     → instructions part 1 → block 1 (15 questions)
     → break (participant fills in the Qualtrics questionnaire)
     → instructions part 2 → block 2 (15 questions) → "back to the questionnaire"
@@ -26,7 +26,7 @@
     server.py         local Python server that serves this page and writes the CSV files
 
   Run `python server.py` and open http://localhost:8000.
-  Researcher URL options: ?pid=P012  ?group=P2  ?debug=1  (see server.py)
+  Researcher URL options: ?pid=P012  ?group=2  ?debug=1  (see server.py)
 
   RESUME: after a reload or closed window during the break or Part 2, choose
   "Resume at Part 2" on the setup screen with the same participant number and
@@ -208,9 +208,10 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .groups label { display: grid; grid-template-columns: auto 44px minmax(0,1fr) minmax(0,1fr); gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer; font-size: 0.92rem; }
 .groups label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .groups input { accent-color: var(--accent); width: 17px; height: 17px; margin: 0; }
-.groups .g { font: 600 0.95rem var(--f-mono); }
+.groups .g { font: 600 0.95rem var(--f-body); white-space: nowrap; }
 .groups .head span:first-child { width: 17px; }
-.groups.simple { grid-template-columns: repeat(4, minmax(0, 72px)); }
+.groups.simple { grid-template-columns: repeat(4, minmax(0, 120px)); }
+@media (max-width: 520px) { .groups.simple { grid-template-columns: repeat(2, minmax(0, 120px)); } }
 .groups.simple label { grid-template-columns: auto auto; justify-content: start; }
 .modes { display: grid; gap: 6px; }
 .modes label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 0.92rem; }
@@ -406,7 +407,7 @@ function checkQuestionData() {
    =========================================================================== */
 const S = {
   pid: null, session_id: null,
-  group: null,           // P1–P4, chosen by the researcher on the setup screen
+  group: null,           // "1"–"4" (Group 1–4), chosen by the researcher on the setup screen
   online: true,          // false when server.py could not be reached
   t0: performance.now(), // session start (for t_session_ms)
   step: 0,               // index into FLOW
@@ -642,7 +643,7 @@ const SCREENS = {
   /* ---- Researcher setup: participant number + group ----------------------
      Filled in by the researcher before the participant starts. The group
      decides the order of Base/Conf and which question set goes with which.
-     On purpose the screen only shows "P1"–"P4" and does NOT say which part has
+     On purpose the screen only shows "Group 1"–"Group 4" and does NOT say which part has
      the confidence score, so a participant who sees this screen learns nothing
      about the design (the meaning of each group is in README.md / study-config.js). */
   setup() {
@@ -660,7 +661,7 @@ const SCREENS = {
         <div class="groups simple" role="radiogroup" aria-label="Group">
           ${Object.keys(GROUPS).map(g => `
             <label><input type="radio" name="group" value="${g}" ${pre === g ? "checked" : ""}>
-              <span class="g">${g}</span></label>`).join("")}
+              <span class="g">Group ${g}</span></label>`).join("")}
         </div>
       </div>
       <div class="field">
@@ -690,7 +691,7 @@ const SCREENS = {
       const pid = $("pid-input").value.trim();
       const g = document.querySelector('input[name="group"]:checked');
       err.hidden = true; notice.hidden = true;
-      if (!g) return showError("Choose a group (P1–P4).");
+      if (!g) return showError("Choose a group (Group 1–4).");
       if (pid && !/^[A-Za-z0-9_-]{1,32}$/.test(pid)) return showError("Use only letters, numbers, - and _ in the participant number.");
       if (mode() === "resume" && !pid) return showError("To resume, enter the participant number of the session you want to continue.");
       goBtn.disabled = true;
@@ -699,12 +700,12 @@ const SCREENS = {
       if (!refused) return mode() === "resume" ? resumeStep() : nextStep();
       goBtn.disabled = false;
       if (refused.error === "unknown_pid") return showError(`Participant number ${pid} was not found in data/participants.csv, so it cannot be resumed. Check the number.`);
-      if (refused.error === "group_mismatch") return showError(`${pid} was in group ${refused.previous_group}, not ${S.group}. Choose group ${refused.previous_group} to resume.`);
+      if (refused.error === "group_mismatch") return showError(`${pid} was in Group ${refused.previous_group}, not Group ${S.group}. Choose Group ${refused.previous_group} to resume.`);
       if (refused.error === "offline") return showError("Resuming needs the study server. Start it with “python server.py” and reload this page.");
       if (refused.error === "pid_exists") {
         const h = refused.history || { done: { 1: [], 2: [] }, statuses: [] };
         notice.innerHTML = `<span><strong>Participant number ${esc(pid)} already exists</strong>
-          (group ${esc(h.group || "?")}; status so far: ${esc(h.statuses.join(", ") || "–")};
+          (Group ${esc(h.group || "?")}; status so far: ${esc(h.statuses.join(", ") || "–")};
           answered: Part 1 ${h.done["1"].length}, Part 2 ${h.done["2"].length}).
           To continue that session, choose “Resume at Part 2”. Otherwise use a new number.</span>
           <div class="actions"><button type="button" class="btn" id="force-new">Start a new session with ${esc(pid)} anyway</button></div>`;
