@@ -1,0 +1,31 @@
+id,part,question,ground_truth
+Q01,Part 1,"Was the initial name of the political party that Emmanuel Macron founded ""En Marche!""?",Yes
+Q02,Part 1,Was Finland the first country to democratically elect a woman as president?,No
+Q03,Part 1,Is Benjamin Netanyahu the longest-serving prime minister of Israel?,Yes
+Q04,Part 1,Did Yo-Yo Ma receive the Presidential Medal of Freedom from President George W. Bush?,No
+Q05,Part 1,Was Joseph Kasa-Vubu the first Prime Minister of Congo?,No
+Q06,Part 1,Was the post of Secretary General of NATO established in 1949?,No
+Q07,Part 1,"Did President Bush and Congress agree on the joint resolution authorizing the Iraq War on October 2, 2002?",Yes
+Q08,Part 1,"Did President Donald Trump promise in 2017 to return humans to the Moon and eventually Mars, and increase the NASA budget by $1.1 billion?",Yes
+Q09,Part 1,"Was ""Covid"" the 2021 Word of the Year according to the American Dialect Society?",No
+Q10,Part 1,Was South Africa the first African country to introduce shared parental leave?,Yes
+Q11,Part 2,Has mortgage interest relief (hypotheekrenteaftrek) been fully abolished in the Netherlands?,No
+Q12,Part 2,Has Lelystad Airport been open for commercial passenger flights since 2023?,No
+Q13,Part 2,Is the amount of Dutch child benefit independent of the parents' income?,Yes
+Q14,Part 2,Does Dutch unemployment benefit (werkloosheidswet) last at most 36 months?,No
+Q15,Part 2,Was abortion removed from the Dutch Criminal Code in 2023?,No
+Q16,Part 2,Is Dutch social assistance (bijstand) for a single adult about 70% of the net minimum wage?,Yes
+Q17,Part 2,Does Dutch road tax (motorrijtuigenbelasting) depend partly on the weight of the car?,Yes
+Q18,Part 2,Can psychological suffering be a reason for euthanasia in the Netherlands?,Yes
+Q19,Part 2,Is sex work legal in the Netherlands?,Yes
+Q20,Part 2,Is the nuclear power plant in Dodewaard still in operation?,No
+Q21,Part 3,Is the CDA party in favour of abolishing the mortgage interest deduction (hypotheekrenteaftrek)?,Yes
+Q22,Part 3,Does the BBB party want Lelystad Airport to open for commercial aviation?,No
+Q23,Part 3,Does the PVV party want the government to introduce a minimum age of 15 for social media?,No
+Q24,Part 3,"Does the BBB party want the government to check more strictly what young people are taught at churches, mosques and other religious or worldview-based organisations?",Yes
+Q25,Part 3,Does the Volt party think high-income households should receive less child benefit?,No
+Q26,Part 3,Does the FvD party want the Netherlands to recognise the Palestinian state as soon as possible?,Yes
+Q27,Part 3,"Does the D66 party want to abolish the extra charge on single-use plastic, such as cups and food containers?",Yes
+Q28,Part 3,Does the D66 party want the number of livestock in the Netherlands to be reduced by at least half?,No
+Q29,Part 3,Does the Progressief Nederland party want the government to make it easier to build homes on agricultural land?,Yes
+Q30,Part 3,Does the VVD party want to raise the minimum age for sex work from 18 to 21?,No

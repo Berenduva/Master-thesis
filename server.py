@@ -26,7 +26,8 @@ How to run
     python server.py --open          # open the study in your default browser
 
 Useful URL parameters for the researcher (add to the address):
-    ?pid=P012        use a fixed participant ID instead of the next free one
+    ?pid=P012        pre-fill the participant number on the setup screen
+    ?group=P2        pre-select the group on the setup screen
     ?debug=1         show the live event log next to the participant screen
 
 The data/ folder is listed in .gitignore so participant data never ends up on GitHub.
@@ -53,24 +54,26 @@ PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 
 # Files the browser is allowed to request. Everything else (data/, .git/,
 # this script) is refused, so participants can never download other people's data.
-STATIC_ALLOWED = re.compile(r"^/(index\.html|study-config\.js|favicon\.ico|assets/[\w\-./]+)?$")
+STATIC_ALLOWED = re.compile(r"^/(index\.html|study-config\.js|questions\.js|favicon\.ico|assets/[\w\-./]+)?$")
 
-# Which questions are shown with / without the confidence score is randomised
-# per participant in the browser (index.html, planTrials) and saved per trial.
+# The researcher picks the participant's group (P1–P4) on the setup screen; the group
+# fixes which block is shown with / without the confidence score and with which
+# question set (GROUPS in study-config.js). Group, block and set are saved per row.
 
 # --------------------------------------------------------------------------
 # CSV column definitions (fixed order, so every file is easy to merge in R/pandas)
 # --------------------------------------------------------------------------
 PARTICIPANT_FIELDS = [
-    "pid", "session_id", "status", "server_time", "user_agent", "screen",
+    "pid", "session_id", "group", "status", "server_time", "user_agent", "screen",
 ]
 EVENT_FIELDS = [
     "pid", "session_id", "server_time", "client_time", "t_session_ms",
-    "phase", "condition", "trial", "question_id", "ai_correct",
+    "phase", "group", "block", "set", "condition", "trial", "question_id", "ai_correct",
     "t_trial_ms", "event", "target", "value", "duration_ms",
 ]
 TRIAL_FIELDS = [
-    "pid", "session_id", "condition", "trial", "question_id", "ai_correct", "overall_confidence",
+    "pid", "session_id", "group", "block", "set", "condition", "trial", "question_id", "part",
+    "ai_answer", "ai_correct", "overall_confidence",
     "decision", "appropriate", "answer_ready_ms", "rt_ms",
     "details_opened", "details_toggles",
     "hover_count", "hovered_models", "hover_total_ms",
@@ -225,10 +228,11 @@ class StudyHandler(SimpleHTTPRequestHandler):
                 "session_id": datetime.now().strftime("%Y%m%d-%H%M%S"),
                 "user_agent": self.headers.get("User-Agent", ""),
                 "screen": body.get("screen", ""),
+                "group": str(body.get("group", ""))[:8],
             }
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS,
                         [{**session, "status": "started", "server_time": now_iso()}])
-        print(f"  -> participant {pid} started"
+        print(f"  -> participant {pid} started (group {session['group'] or '?'})"
               + ("  [WARNING: this ID was used before]" if reused else ""))
         return self.send_json({
             "ok": True, **session,

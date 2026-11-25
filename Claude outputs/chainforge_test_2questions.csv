@@ -1,0 +1,3 @@
+id,part,question,ground_truth
+Q01,Part 1,"Was the initial name of the political party that Emmanuel Macron founded ""En Marche!""?",Yes
+Q25,Part 3,Does the Volt party think high-income households should receive less child benefit?,No
