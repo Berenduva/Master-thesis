@@ -105,7 +105,7 @@ const TEXTS = {
         <li><strong>Accept</strong> the answer if you think it is correct.</li>
         <li><strong>Decline</strong> the answer if you think it is wrong.</li>
       </ul>
-      <p>Answer as you would in daily life. There is no time limit, but please don’t look anything up elsewhere.</p>`,
+      <p>Answer as you would when using generative AI in daily life. There is no time limit.</p>`,
 
   // Instructions before a block WITH confidence score.
   introConf: `
@@ -118,7 +118,7 @@ const TEXTS = {
         <li><strong>Accept</strong> the answer if you think it is correct.</li>
         <li><strong>Decline</strong> the answer if you think it is wrong.</li>
       </ul>
-      <p>Answer as you would in daily life. There is no time limit, but please don’t look anything up elsewhere.</p>`,
+      <p>Answer as you would when using generative AI in daily life. There is no time limit.</p>`,
 
   // Shown after block 1.
   breakScreen: `
