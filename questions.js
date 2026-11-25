@@ -640,8 +640,8 @@ const QUESTIONS = [
     set: "B",
     q: "Was the post of Secretary General of NATO established in 1949?",
     answer: "No",
-    a: "No. Although NATO was founded in 1949, the post of Secretary General was not established until 1952.",
-    aSource: "Gemini run 1",
+    a: "No. The post of NATO Secretary General was established in 1952, with Lord Ismay as its first holder.",
+    aSource: "GPT run 1",
     correct: true,
     alt: "No",
     models: {

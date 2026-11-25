@@ -31,6 +31,8 @@ appropriately (accept correct answers, decline incorrect ones)?
   re-run on 25 Nov 2026 ("Is the maximum duration ... 36 months?" -> No, 89%, correct).
   Berend decided to keep all 30 and not replace questions to reach the originally planned 80%.
   `python check_questions.py` verifies questions.js (scores, sets, runs, answer texts).
+- The shown explanation (`a`) is always GPT run 1, unedited (Q06 switched from Gemini run 1 to
+  GPT run 1 on 25 Nov 2026; "Lord Ismay" had been flagged as the hedge "may" by mistake).
 - Confidence score = agreement between 5 models x 20 runs (Claude, GPT, Gemini, DeepSeek, Qwen3-8B
   via ChainForge, no web search): the share of all valid runs that give the majority answer.
   The AI assistant shows the majority answer plus one real model explanation (`aSource`).

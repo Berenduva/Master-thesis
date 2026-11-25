@@ -100,7 +100,7 @@ events file a `session_resumed` event. A wrong number or group is refused with a
 
 `questions.js` holds the 30 questions with all 3,000 model answers (Claude Sonnet 5.5, GPT-6.1 Sol,
 Gemini 3.8 Flash, DeepSeek V4.1 Flash, Qwen3-8B; 20 runs each). The AI assistant shows the majority answer
-of all runs plus one real model explanation that gives the same answer (`aSource`). The confidence score is
+of all runs plus one real, unedited model explanation: always the first GPT-6.1 Sol run (`aSource`; in all 30 questions this run gives the majority answer). The confidence score is
 the share of all valid runs that give the majority answer (one Gemini run on Q08 had no Yes/No: it is listed
 but not counted). The AI is correct on 21 of 30 questions (70%): set A 10 correct + 5 incorrect, set B 11
 correct + 4 incorrect. Q14 was rephrased and re-run ("Is the maximum duration of Dutch unemployment benefit

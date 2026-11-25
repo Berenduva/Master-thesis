@@ -15,7 +15,8 @@ It reads questions.js (the same file the app uses) and checks that:
   5. the confidence score (share of all valid runs that give the shown answer)
      matches the expected value per question (EXPECTED_SCORES below)
   6. `correct` matches `alt` (the ground truth) and `answer`
-  7. the shown answer text `a` starts with the majority answer, is one or two
+  7. the shown answer text `a` is exactly GPT run 1 (aSource "GPT run 1"),
+     starts with the majority answer, is one or two
      sentences, and has no hedging and no markdown (** or *)
 
 It prints every problem it finds and ends with "ALL CHECKS PASSED" or
@@ -50,6 +51,7 @@ EXPECTED_CORRECT = {"A": 10, "B": 11}
 
 PARTS = {range(1, 11): "SimpleQA", range(11, 21): "Dutch facts", range(21, 31): "Party positions"}
 
+# Hedging phrases that must not appear in the shown answer (matched as whole words).
 HEDGES = ["i'm not sure", "i am not sure", "as far as i", "i believe", "i think", "not certain",
           "i don't know", "i do not know", "possibly", "might be", "may have", "to my knowledge",
           "it's unclear", "it is unclear", "i cannot", "i can't", "as of my", "knowledge cutoff"]
@@ -131,8 +133,12 @@ def main() -> int:
         if agree * 2 <= valid:
             problems.append(f"{qid}: shown answer is not the majority ({agree}/{valid})")
 
-        # -- the shown answer text
+        # -- the shown answer text: always the first GPT run, unedited
         a = q["a"]
+        if q["aSource"] != "GPT run 1":
+            problems.append(f"{qid}: aSource is '{q['aSource']}', expected 'GPT run 1'")
+        elif a.strip() != q["models"]["GPT"][0][1].strip():
+            problems.append(f"{qid}: answer text is not exactly the text of GPT run 1")
         if yes_no(a) != q["answer"]:
             problems.append(f"{qid}: answer text does not start with '{q['answer']}': {a[:40]}...")
         sentences = [s for s in re.split(r"(?<=[.!?])\s+(?=[A-Z“\"])", a.strip()) if s]
@@ -141,7 +147,8 @@ def main() -> int:
         if "*" in a or "#" in a or "`" in a:
             problems.append(f"{qid}: answer text contains markdown characters")
         for h in HEDGES:
-            if h in a.lower():
+            # whole words only, so names are never flagged (e.g. "Lord Ismay" is not "may")
+            if re.search(r"" + re.escape(h) + r"", a.lower()):
                 problems.append(f"{qid}: answer text contains hedging ('{h}')")
 
     # -- set balance
