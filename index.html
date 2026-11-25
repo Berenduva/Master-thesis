@@ -13,7 +13,7 @@
   The group fixes the condition and question set per block (see GROUPS in
   study-config.js): Base = without confidence score ("baseline"),
   Conf = with confidence score ("confidence"). Within a block the order of
-  the questions is random per participant.
+  the questions is fixed (the same for everyone; see STUDY.randomizeOrder).
 
   The questionnaires (GAAIS-10, Jian trust scale, final questions), consent
   and debrief are done in Qualtrics (consent/debrief can be switched on here
@@ -210,6 +210,8 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
 .groups input { accent-color: var(--accent); width: 17px; height: 17px; margin: 0; }
 .groups .g { font: 600 0.95rem var(--f-mono); }
 .groups .head span:first-child { width: 17px; }
+.groups.simple { grid-template-columns: repeat(4, minmax(0, 72px)); }
+.groups.simple label { grid-template-columns: auto auto; justify-content: start; }
 .modes { display: grid; gap: 6px; }
 .modes label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-size: 0.92rem; }
 .modes input { accent-color: var(--accent); width: 17px; height: 17px; margin: 3px 0 0; flex: none; }
@@ -639,9 +641,11 @@ const SCREENS = {
 
   /* ---- Researcher setup: participant number + group ----------------------
      Filled in by the researcher before the participant starts. The group
-     decides the order of Base/Conf and which question set goes with which. */
+     decides the order of Base/Conf and which question set goes with which.
+     On purpose the screen only shows "P1"–"P4" and does NOT say which part has
+     the confidence score, so a participant who sees this screen learns nothing
+     about the design (the meaning of each group is in README.md / study-config.js). */
   setup() {
-    const desc = (g) => GROUPS[g].map(([c, set]) => `${c === "confidence" ? "Conf" : "Base"}, set ${set}`);
     const pre = params.get("group");
     $("screen").innerHTML = `
       <span class="label-sm">For the researcher</span>
@@ -653,11 +657,10 @@ const SCREENS = {
       </div>
       <div class="field">
         <span class="label-sm">Group</span>
-        <div class="groups" role="radiogroup">
-          <label class="head"><span></span><span>Group</span><span>First block</span><span>Second block</span></label>
+        <div class="groups simple" role="radiogroup" aria-label="Group">
           ${Object.keys(GROUPS).map(g => `
             <label><input type="radio" name="group" value="${g}" ${pre === g ? "checked" : ""}>
-              <span class="g">${g}</span><span>${desc(g)[0]}</span><span>${desc(g)[1]}</span></label>`).join("")}
+              <span class="g">${g}</span></label>`).join("")}
         </div>
       </div>
       <div class="field">
@@ -752,7 +755,7 @@ const SCREENS = {
   /* ---- One block of questions --------------------------------------------- */
   trials(step) {
     const plan = planTrials(step.block);
-    // Store the full plan once, so the random order can be checked later.
+    // Store the full plan once, so the order shown can be checked later.
     // (After a resume: only the questions still to do; target says how many were done before.)
     logEvent("trial_plan", { target: plan.offset ? `resumed_after_${plan.offset}` : "", value: plan.map(p => p.q.id).join(" ") }, true);
     runTrial(plan, 0, step.block);
@@ -844,13 +847,16 @@ const SCREENS = {
 /* ===========================================================================
    5b. BLOCK PLAN
    ---------------------------------------------------------------------------
-   A block shows all questions of its set (A or B) in a random order; every
-   question in the block gets the block's condition (from the group).
+   A block shows all questions of its set (A or B); every question in the
+   block gets the block's condition (from the group). The order is FIXED (the
+   order in questions.js), the same for every participant, unless
+   STUDY.randomizeOrder is true.
    =========================================================================== */
 function planTrials(block) {
   const { condition, set } = blockPlan(block);
   const done = S.done[block];                     // empty, except after "Resume at Part 2"
-  const plan = shuffle(ACTIVE_QUESTIONS.filter(q => q.set === set && !done.includes(q.id))).map(q => ({ q, condition }));
+  const inSet = ACTIVE_QUESTIONS.filter(q => q.set === set && !done.includes(q.id));
+  const plan = (STUDY.randomizeOrder ? shuffle(inSet) : inSet).map(q => ({ q, condition }));
   plan.offset = done.length;                      // trial numbers continue after the questions already answered
   return plan;
 }
@@ -1117,7 +1123,7 @@ function describeEvent(r) {
     case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} ${sec(r.duration_ms)} after the answer appeared`;
     case "screen_shown":    return `Screen: ${r.target}`;
     case "consent_given":   return "Consent given";
-    case "trial_plan":      return `Part ${r.block} (${r.condition === "confidence" ? "with score" : "without score"}, set ${r.set}), random order${r.target ? " of the remaining questions" : ""}: ${r.value}`;
+    case "trial_plan":      return `Part ${r.block} (${r.condition === "confidence" ? "with score" : "without score"}, set ${r.set}), order${r.target ? " of the remaining questions" : ""}: ${r.value}`;
     case "group_assigned":  return `Group ${r.target}: ${r.value}`;
     case "pause_end":       return `Break finished after ${sec(r.duration_ms)}`;
     case "part2_confirm_shown":     return "Clicked “Continue to Part 2” (asked to confirm)";

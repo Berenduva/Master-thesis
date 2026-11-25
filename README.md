@@ -24,7 +24,8 @@ This opens http://localhost:8000. Nothing needs to be installed besides Python 3
 The first screen is for the researcher:
 
 1. **Participant number**: the same as in Qualtrics. Leave empty to get the next free number (P001, P002, …).
-2. **Group**:
+2. **Group** (P1–P4). The screen only shows the group name, not which part has the confidence score,
+   so a participant who sees the screen learns nothing about the design. What each group means:
 
    | Group | First block | Second block |
    |---|---|---|
@@ -54,7 +55,9 @@ Researcher URL options:
 Researcher setup → instructions Part 1 → block 1 (15 questions) → break (the participant fills in the
 Qualtrics questionnaire, then clicks "Continue to Part 2" and confirms in a small dialog) → instructions
 Part 2 → block 2 (15 questions) → back to the questionnaire. Within a block the questions are shown in a
-random order (stored as `trial_plan`).
+FIXED order, the same for every participant: the order in `questions.js` (set A: Q02, Q04, Q07, Q08, Q09,
+Q13, Q15, Q17, Q19, Q20, Q21, Q22, Q26, Q28, Q29; set B: the other 15 in number order). The order shown is
+stored as `trial_plan`. (`randomizeOrder: true` in `study-config.js` would give a random order per participant.)
 
 Per question the participant clicks **Accept** (the answer is correct) or **Decline** (it is wrong). There
 is no feedback. Base and Conf use exactly the same question, answer text, "Thinking…" time and typing speed;
@@ -122,7 +125,7 @@ answer_ready_ms (thinking + typing time), rt_ms (from when the full answer was v
 details_toggles, hover_count, hovered_models, hover_total_ms (detail and hover fields are empty in Base).
 
 **Events**: `group_assigned`, `session_start`, `session_resumed`, `screen_shown`, `trial_plan` (random order
-per block), `trial_shown`, `answer_shown`, `details_open` / `details_close`, `hover` (pointing at a model row),
+shown per block), `trial_shown`, `answer_shown`, `details_open` / `details_close`, `hover` (pointing at a model row),
 `hover_list` (pointing at that model's list of answers), `model_click`, `decision`, `part2_confirm_shown` /
 `part2_confirm_cancelled`, `pause_end` (break length in `duration_ms`), `tab_hidden` / `tab_visible`,
 `stop_clicked`, `page_closed`.

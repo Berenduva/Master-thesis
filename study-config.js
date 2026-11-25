@@ -18,7 +18,10 @@
        P4      Conf, set B      Base, set A
 
    Base = without confidence score, Conf = with confidence score.
-   Within a block the 15 questions are shown in a random order.
+   Within a block the 15 questions are shown in a FIXED order (the order in
+   questions.js), the same for every participant (see randomizeOrder below).
+   The setup screen only shows "P1"–"P4", not what each group means, so a
+   participant who sees it learns nothing about the design.
    ========================================================================== */
 
 const STUDY = {
@@ -41,6 +44,10 @@ const STUDY = {
 
   // Each model was asked every question this many times.
   answersPerModel: 20,
+
+  // false = every participant gets the questions of a set in the same, fixed order
+  // (the order in questions.js). true = a new random order per participant.
+  randomizeOrder: false,
 
   // Which questions are used, by ID. Leave the list empty ([]) to use ALL questions.
   activeQuestions: [],

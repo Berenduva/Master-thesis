@@ -38,7 +38,9 @@ appropriately (accept correct answers, decline incorrect ones)?
 - Two blocks of 15 questions: one without score (baseline), one with score (confidence).
   Four counterbalanced groups, chosen by the researcher on the first screen:
   P1 Base A -> Conf B, P2 Base B -> Conf A, P3 Conf A -> Base B, P4 Conf B -> Base A.
-  Question order within a block is random per participant.
+  Question order within a block is FIXED (order in questions.js, same for everyone;
+  Berend's choice, 25 Nov 2026; STUDY.randomizeOrder = false). The setup screen shows only
+  P1-P4, not which part has the confidence score (so participants learn nothing about the design).
 - Flow: researcher setup (participant number + group) -> instructions -> block 1 -> break
   (participant fills in a Qualtrics questionnaire) -> instructions -> block 2 -> back to Qualtrics.
 - Consent, debrief, demographics, GAAIS-10, Jian trust scale and extra questions are all in
