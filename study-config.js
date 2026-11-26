@@ -36,7 +36,7 @@ const STUDY = {
   // >>> BETA SWITCH <<<  true = EVERYONE sees the researcher view (live log + measures)
   // next to the study, e.g. for a demo on GitHub Pages. MUST be false for real participants.
   // With beta: false the researcher can still open the view with ?debug=1 in the address.
-  beta: false,
+  beta: true,
 
   // Consent and debrief are done in Qualtrics. Set to true to show them in the app as well.
   showConsent: false,
