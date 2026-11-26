@@ -89,7 +89,6 @@ TRIAL_FIELDS = [
     "decision", "appropriate", "answer_ready_ms", "rt_ms",
     "details_opened", "details_toggles",
     "hover_count", "hovered_models", "hover_total_ms",
-    "viewed_models", "view_total_ms",
     "server_time",
 ]
 RESPONSE_FIELDS = [

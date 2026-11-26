@@ -137,13 +137,11 @@ starts with the majority answer, is at most two sentences and has no hedging or 
 **Trials** (one row per question): pid, session_id, group, block, set, condition, trial, question_id, part,
 ai_answer, ai_correct, overall_confidence (also in Base, where it was hidden), decision, appropriate (1/0),
 answer_ready_ms (thinking + typing time), rt_ms (from when the full answer was visible), details_opened,
-details_toggles, hover_count, hovered_models, hover_total_ms, viewed_models, view_total_ms (detail, hover
-and view fields are empty in Base).
+details_toggles, hover_count, hovered_models, hover_total_ms (detail and hover fields are empty in Base).
 
 **Events**: `group_assigned`, `session_start`, `session_resumed`, `screen_shown`, `trial_plan` (question order
 shown per block), `trial_shown`, `answer_shown`, `details_open` / `details_close`, `hover` (pointing at a model row),
-`hover_list` (pointing at that model's list of answers), `answers_view` (a model's answers on screen),
-`model_click`, `decision`, `part2_confirm_shown` /
+`hover_list` (pointing at that model's list of answers), `model_click`, `decision`, `part2_confirm_shown` /
 `part2_confirm_cancelled`, `pause_end` (break length in `duration_ms`), `tab_hidden` / `tab_visible`,
 `stop_clicked`, `page_closed`.
 
@@ -151,14 +149,5 @@ Hovers (both `hover` and `hover_list`) shorter than 400 ms (`hoverThresholdMs`) 
 `value = short` and not counted in the trial summary; counted ones have `value = counted`. Hover time per
 model per question = the sum of `duration_ms` of counted `hover` + `hover_list` events with that `target`.
 
-**Answer-view time** (`answers_view`, `viewed_models`, `view_total_ms`): participants often move the mouse away
-to read a model's answers, so the app also measures how long each model's answers are ON SCREEN, whatever the
-mouse does. It runs from the moment a model's answers appear (pointing at or clicking the model) until another
-model is shown, the details close, a dialog opens, the tab is hidden or the participant decides, and goes on
-again when the details / tab / dialog come back. Brushing past a model (< 400 ms) is logged as `short` and not
-counted; a continued stretch after the details / tab / dialog come back is always counted. View time per model
-per question = the sum of `duration_ms` of counted `answers_view` events with that `target`.
-
 Measures this supports: AcceptRate, detail-inspection rate (details_opened), TrustCalibration =
-AcceptRate(correct) − AcceptRate(incorrect), Accuracy (mean of `appropriate`), and hover time and answer-view
-time per model per question.
+AcceptRate(correct) − AcceptRate(incorrect), Accuracy (mean of `appropriate`), and hover time per model per question.
