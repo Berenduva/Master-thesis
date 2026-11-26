@@ -54,7 +54,7 @@ const STUDY = {
 
   // "AI is thinking" animation before each answer, then the answer is typed out.
   // Same for every question, so the delay never hints at whether an answer is right.
-  thinkingMs: 1500,      // how long the thinking dots show (ms)
+  thinkingMs: 2500,      // how long the thinking dots show (ms); long enough to read the question first
   typingMsPerChar: 25,   // typing speed (ms per character); 0 = show the answer at once
 
   // Hovers on a model (or on its answer list) shorter than this are logged as "short"
