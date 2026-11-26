@@ -288,8 +288,8 @@ h1, h2.title { font-family: var(--f-display); font-weight: 600; font-size: 1.6re
     <div class="measures" id="measures"></div>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>Part</th><th>#</th><th>Question</th><th>Score shown</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Hover time</th><th>Time</th><th>Appropriate</th></tr></thead>
-        <tbody id="rows"><tr><td colspan="11" class="muted">No decisions yet.</td></tr></tbody>
+        <thead><tr><th>Part</th><th>#</th><th>Question</th><th>Score shown</th><th>AI</th><th>Decision</th><th>Details</th><th>Hovered</th><th>Hover time</th><th>Answers on screen</th><th>Time</th><th>Appropriate</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="12" class="muted">No decisions yet.</td></tr></tbody>
       </table>
     </div>
     <div class="actions">
@@ -350,7 +350,7 @@ function onceClick(btn, fn) {
 /** Show an in-page dialog (overlay). Escape = the first ("cancel") button.
     Focus moves into the dialog and goes back to where it was when the dialog closes. */
 function openOverlay(id, cancelBtn) {
-  activeTrial && activeTrial.endHover();         // a hover never keeps running under a dialog
+  activeTrial && activeTrial.pause();            // hover and answer-view time never keep running under a dialog
   const ov = $(id), back = document.activeElement;
   ov.hidden = false;
   ov.querySelectorAll(".btn").forEach(b => b.disabled = false);
@@ -363,7 +363,12 @@ function openOverlay(id, cancelBtn) {
       btns[(k + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
     }
   };
-  return () => { ov.hidden = true; ov.onkeydown = null; if (back && document.contains(back)) back.focus(); };
+  // close(false) = the study stops; otherwise the answer-view time of the question goes on.
+  return (resume = true) => {
+    ov.hidden = true; ov.onkeydown = null;
+    if (back && document.contains(back)) back.focus();
+    if (resume && activeTrial) activeTrial.resume();
+  };
 }
 
 /** Fisher–Yates shuffle (returns a new array). */
@@ -822,12 +827,12 @@ const SCREENS = {
     logEvent("stop_clicked", {}, true);
     const close = openOverlay("overlay", $("cont"));
     $("cont").onclick = () => { close(); logEvent("stop_cancelled", {}, true); };
-    onceClick($("quit"), () => { close(); SCREENS.withdrawn("withdrew"); });
+    onceClick($("quit"), () => { close(false); SCREENS.withdrawn("withdrew"); });
   },
 
   withdrawn(status) {
     skipBlock = null;
-    activeTrial && activeTrial.endHover();
+    activeTrial && activeTrial.pause();
     activeTrial = null;
     trialToken++;
     saveStatus(status);
@@ -884,7 +889,8 @@ function runTrial(list, i, block) {
 
   // Per-trial bookkeeping, turned into the summary row at the decision.
   const T = { detailsOpened: false, detailsToggles: 0, hovers: 0, hovered: new Set(), hoverTotal: 0,
-              peekModel: null, activeHover: null, decided: false, readyAt: null };
+              peekModel: null, activeHover: null, decided: false, readyAt: null,
+              view: null, viewed: new Set(), viewTotal: 0 };
 
   Object.assign(ctx, { phase: "trials", condition, trial: nr, question_id: q.id, ai_correct: q.correct ? 1 : 0, trialStart: performance.now() });
   $("step-label").textContent = `Part ${block} · Question ${nr} of ${list.offset + list.length}`;
@@ -968,13 +974,14 @@ function runTrial(list, i, block) {
   const toggle = $("toggle-details");
   if (toggle) toggle.onclick = () => {
     const open = toggle.getAttribute("aria-expanded") !== "true";
-    if (!open) endHover();
+    if (!open) pause();
     toggle.setAttribute("aria-expanded", open);
     toggle.lastElementChild.textContent = open ? "Hide details" : "Show details";
     $("details").hidden = !open;
     T.detailsToggles++;
     if (open) T.detailsOpened = true;
     logEvent(open ? "details_open" : "details_close");
+    if (open) resume();                          // the last model's answers are visible again
   };
 
   /* -- Hover tracking ------------------------------------------------------
@@ -983,13 +990,42 @@ function runTrial(list, i, block) {
      last model, so the participant can move the mouse onto it and scroll; time
      spent on the list is logged as "hover_list" for that model. Only one hover
      runs at a time, and it always ends (and is logged) when the pointer leaves,
-     the details close, a dialog opens, the tab is hidden or a decision is made. */
+     the details close, a dialog opens, the tab is hidden or a decision is made.
+
+     Answer-view time ("answers_view"): participants often move the mouse away
+     to READ a model's answers. So we also measure how long each model's answers
+     are ON SCREEN, whatever the mouse does. It runs from the moment a model's
+     answers appear until another model is shown, the details close, a dialog
+     opens, the tab is hidden or a decision is made (and goes on again when the
+     details / tab / dialog come back). */
   function showPeek(name) {
     if (!name || name === T.peekModel) return;   // already shown: nothing to redraw (instant, keeps scroll position)
     T.peekModel = name;
     $("peek").innerHTML = peekHTML(q, name);
     $("peek").classList.add("filled");
     document.querySelectorAll(".model").forEach(b => b.classList.toggle("active", b.dataset.model === name));
+    startView(name);
+  }
+  /** resumed = the same answers are visible again (after details/tab/dialog): always counted,
+      because the 400 ms rule is only meant for brushing past a model with the mouse. */
+  function startView(name, resumed = false) {
+    endView();
+    T.view = { name, resumed, start: performance.now() };
+  }
+  function endView() {
+    const v = T.view;
+    if (!v) return;
+    T.view = null;
+    const d = performance.now() - v.start;
+    const counted = v.resumed || d >= STUDY.hoverThresholdMs;   // same 400 ms rule as hovers
+    if (counted) { T.viewed.add(v.name); T.viewTotal += d; }
+    logEvent("answers_view", { target: v.name, value: counted ? "counted" : "short", duration_ms: d });
+  }
+  /** Stop all running timers of this question (hover + answer view). */
+  function pause() { endHover(); endView(); }
+  /** Answers of the last model are visible again (details open, tab back, dialog closed): view time goes on. */
+  function resume() {
+    if (!T.decided && T.peekModel && $("details") && !$("details").hidden && !document.hidden) startView(T.peekModel, true);
   }
   function startHover(name, where) {
     const h = T.activeHover;
@@ -1025,13 +1061,13 @@ function runTrial(list, i, block) {
     peek.addEventListener("mouseenter", () => { if (T.peekModel) startHover(T.peekModel, "list"); });
     peek.addEventListener("mouseleave", () => { if (T.activeHover && T.activeHover.where === "list") endHover(); });
   }
-  activeTrial = { endHover };
+  activeTrial = { endHover, pause, resume };
 
   /* -- Decision ------------------------------------------------------------ */
   const decide = (choice) => {
     if (T.decided || T.readyAt == null) return;   // guard against double clicks / clicks before the answer is shown
     T.decided = true;
-    endHover();
+    pause();
     const t = performance.now();
     const rt = t - T.readyAt;                      // decision time, from the moment the full answer was visible
     logEvent("decision", { value: choice, duration_ms: rt }, true);
@@ -1047,7 +1083,9 @@ function runTrial(list, i, block) {
       details_toggles: conf ? T.detailsToggles : "",
       hover_count: conf ? T.hovers : "",
       hovered_models: conf ? [...T.hovered].join("; ") : "",
-      hover_total_ms: conf ? Math.round(T.hoverTotal) : ""
+      hover_total_ms: conf ? Math.round(T.hoverTotal) : "",
+      viewed_models: conf ? [...T.viewed].join("; ") : "",       // models whose answers were on screen ≥ 400 ms
+      view_total_ms: conf ? Math.round(T.viewTotal) : ""        // total time model answers were on screen
     });
     // No feedback on correctness (that would teach participants which answers are wrong).
     $("screen").querySelectorAll(".actions .btn").forEach(b => b.disabled = true);
@@ -1058,7 +1096,7 @@ function runTrial(list, i, block) {
   $("decline").onclick = () => decide("decline");
 
   // Debug: let the researcher jump to the end of this block.
-  skipBlock = () => { endHover(); activeTrial = null; trialToken++; logEvent("debug_skip", {}, true); nextStep(); };
+  skipBlock = () => { pause(); activeTrial = null; trialToken++; logEvent("debug_skip", {}, true); nextStep(); };
 }
 
 /** Text in the "peek" box below the model list. */
@@ -1099,7 +1137,7 @@ function showBackupIfNeeded(needed) {
    8. RESEARCHER DEBUG PANEL (?debug=1)
    =========================================================================== */
 let skipBlock = null;
-let activeTrial = null;   // { endHover } of the question on screen, so a hover can be closed from outside (dialog, hidden tab)
+let activeTrial = null;   // { endHover, pause, resume } of the question on screen, so timers can be paused from outside (dialog, hidden tab)
 let trialToken = 0;   // increases with every new question; pending typing timers of older questions stop
 function renderDebugInfo() {
   if (!DEBUG) return;
@@ -1119,6 +1157,7 @@ function describeEvent(r) {
     case "details_open":    return "Opened details";
     case "details_close":   return "Closed details";
     case "hover":           return r.value === "counted" ? `Hovered ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on ${r.target} (${sec(r.duration_ms)}, not counted)`;
+    case "answers_view":    return r.value === "counted" ? `Answers of ${r.target} were on screen for ${sec(r.duration_ms)}` : `Answers of ${r.target} briefly on screen (${sec(r.duration_ms)}, not counted)`;
     case "hover_list":      return r.value === "counted" ? `Read the answer list of ${r.target} for ${sec(r.duration_ms)}` : `Brief hover on the answer list of ${r.target} (${sec(r.duration_ms)}, not counted)`;
     case "model_click":     return `Clicked ${r.target}`;
     case "decision":        return `Decision: ${r.value === "accept" ? "accepted" : "declined"} ${sec(r.duration_ms)} after the answer appeared`;
@@ -1180,6 +1219,7 @@ function renderMeasures() {
       <td>${conf ? (x.details_opened ? "yes" : "no") : "–"}</td>
       <td>${conf ? esc(x.hovered_models || "none") : "–"}</td>
       <td>${conf ? (x.hover_total_ms / 1000).toFixed(1) + " s" : "–"}</td>
+      <td>${conf ? (x.view_total_ms / 1000).toFixed(1) + " s" : "–"}</td>
       <td>${(x.rt_ms / 1000).toFixed(1)} s</td>
       <td><span class="pill ${x.appropriate ? "ok" : "no"}">${x.appropriate ? "yes" : "no"}</span></td>
     </tr>`;
@@ -1196,10 +1236,11 @@ window.addEventListener("beforeunload", (e) => { if (studyRunning && !DEBUG) { e
 // Log tab switches: leaving the tab may mean looking answers up elsewhere.
 // A running hover is closed first, so time away from the tab is never counted as hover time.
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden && activeTrial) activeTrial.endHover();
+  if (document.hidden && activeTrial) activeTrial.pause();
   logEvent(document.hidden ? "tab_hidden" : "tab_visible", {}, true);
+  if (!document.hidden && activeTrial && $("overlay").hidden) activeTrial.resume();
 });
-window.addEventListener("pagehide", () => { activeTrial && activeTrial.endHover(); logEvent("page_closed"); Outbox.beaconAll(); });
+window.addEventListener("pagehide", () => { activeTrial && activeTrial.pause(); logEvent("page_closed"); Outbox.beaconAll(); });
 
 init();
 </script>
