@@ -1,8 +1,8 @@
 /*
-  Settings, groups and texts for the study app.
+  Settings, orders and texts for the study app.
   Questions are in questions.js. Questionnaires, consent and debrief are in Qualtrics.
 
-  group   part 1         part 2
+  order   part 1         part 2
   1       Base, set A    Conf, set B
   2       Base, set B    Conf, set A
   3       Conf, set A    Base, set B
@@ -45,7 +45,7 @@ const STUDY = {
   hoverThresholdMs: 400
 };
 
-// [condition, set] for part 1 and part 2
+// the 4 orders: [condition, set] for part 1 and part 2 (stored in the "group" column)
 const GROUPS = {
   "1": [["baseline", "A"], ["confidence", "B"]],
   "2": [["baseline", "B"], ["confidence", "A"]],

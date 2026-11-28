@@ -3,8 +3,8 @@
   Confidence score study - participant app
   Master thesis, Berend de Vries (UvA)
 
-  Flow: setup (participant nr + group) > part 1 > break (Qualtrics) > part 2 > end
-  Groups, settings and texts are in study-config.js, the questions in questions.js.
+  Flow: setup (participant nr + order) > part 1 > break (Qualtrics) > part 2 > end
+  Orders, settings and texts are in study-config.js, the questions in questions.js.
   Questionnaires, consent and debrief are in Qualtrics.
 
   Run: python server.py and open http://localhost:8000
@@ -551,7 +551,7 @@ function resumeStep() {
 // ---------- screens ----------
 const SCREENS = {
 
-  // setup (researcher). Only shows "Group 1-4", not what they mean,
+  // setup (researcher). Only shows "Order 1-4", not what they mean,
     // so participants can't learn anything from this screen.
   setup() {
     const pre = params.get("group");
@@ -564,11 +564,11 @@ const SCREENS = {
         <span class="muted" style="font-size:.85rem">Use the same number as in Qualtrics. Leave empty to get the next free number.</span>
       </div>
       <div class="field">
-        <span class="label-sm">Group</span>
-        <div class="groups simple" role="radiogroup" aria-label="Group">
+        <span class="label-sm">Order</span>
+        <div class="groups simple" role="radiogroup" aria-label="Order">
           ${Object.keys(GROUPS).map(g => `
             <label><input type="radio" name="group" value="${g}" ${pre === g ? "checked" : ""}>
-              <span class="g">Group ${g}</span></label>`).join("")}
+              <span class="g">Order ${g}</span></label>`).join("")}
         </div>
       </div>
       <div class="field">
@@ -578,7 +578,7 @@ const SCREENS = {
             <span><strong>New participant</strong>: start at Part 1.</span></label>
           <label><input type="radio" name="mode" value="resume">
             <span><strong>Resume at Part 2</strong>: the window was reloaded or closed during the break or Part 2.
-            Use the same participant number and group. Questions already answered are not shown again; nothing is overwritten.</span></label>
+            Use the same participant number and order. Questions already answered are not shown again; nothing is overwritten.</span></label>
         </div>
       </div>
       <p class="error" id="setup-error" hidden></p>
@@ -598,7 +598,7 @@ const SCREENS = {
       const pid = $("pid-input").value.trim();
       const g = document.querySelector('input[name="group"]:checked');
       err.hidden = true; notice.hidden = true;
-      if (!g) return showError("Choose a group (Group 1–4).");
+      if (!g) return showError("Choose an order (Order 1–4).");
       if (pid && !/^[A-Za-z0-9_-]{1,32}$/.test(pid)) return showError("Use only letters, numbers, - and _ in the participant number.");
       if (mode() === "resume" && !pid) return showError("To resume, enter the participant number of the session you want to continue.");
       goBtn.disabled = true;
@@ -607,12 +607,12 @@ const SCREENS = {
       if (!refused) return mode() === "resume" ? resumeStep() : nextStep();
       goBtn.disabled = false;
       if (refused.error === "unknown_pid") return showError(`Participant number ${pid} was not found in data/participants.csv, so it cannot be resumed. Check the number.`);
-      if (refused.error === "group_mismatch") return showError(`${pid} was in Group ${refused.previous_group}, not Group ${S.group}. Choose Group ${refused.previous_group} to resume.`);
+      if (refused.error === "group_mismatch") return showError(`${pid} was in Order ${refused.previous_group}, not Order ${S.group}. Choose Order ${refused.previous_group} to resume.`);
       if (refused.error === "offline") return showError("Resuming needs the study server. Start it with “python server.py” and reload this page.");
       if (refused.error === "pid_exists") {
         const h = refused.history || { done: { 1: [], 2: [] }, statuses: [] };
         notice.innerHTML = `<span><strong>Participant number ${esc(pid)} already exists</strong>
-          (Group ${esc(h.group || "?")}; status so far: ${esc(h.statuses.join(", ") || "–")};
+          (Order ${esc(h.group || "?")}; status so far: ${esc(h.statuses.join(", ") || "–")};
           answered: Part 1 ${h.done["1"].length}, Part 2 ${h.done["2"].length}).
           To continue that session, choose “Resume at Part 2”. Otherwise use a new number.</span>
           <div class="actions"><button type="button" class="btn" id="force-new">Start a new session with ${esc(pid)} anyway</button></div>`;
@@ -978,7 +978,7 @@ function renderDebugInfo() {
   if (!DEBUG) return;
   $("debug-info").innerHTML = `
     <dt>Participant</dt><dd>${esc(S.pid || "–")}</dd>
-    <dt>Group</dt><dd>${S.group ? `${esc(S.group)} (${GROUPS[S.group].map(([c, s]) => `${c === "confidence" ? "Conf" : "Base"} ${s}`).join(" → ")})` : "–"}</dd>
+    <dt>Order</dt><dd>${S.group ? `${esc(S.group)} (${GROUPS[S.group].map(([c, s]) => `${c === "confidence" ? "Conf" : "Base"} ${s}`).join(" → ")})` : "–"}</dd>
     <dt>Saving data</dt><dd>${S.online ? "yes (server connected)" : "no (offline)"}</dd>
     <dt>Now</dt><dd>${esc(FLOW[S.step].id)}${ctx.trial ? ` · question ${ctx.trial} (${esc(ctx.question_id)}, ${ctx.condition === "confidence" ? "with" : "without"} score, AI ${ctx.ai_correct ? "correct" : "incorrect"})` : ""}</dd>`;
 }
@@ -997,7 +997,7 @@ function describeEvent(r) {
     case "screen_shown":    return `Screen: ${r.target}`;
     case "consent_given":   return "Consent given";
     case "trial_plan":      return `Part ${r.block} (${r.condition === "confidence" ? "with score" : "without score"}, set ${r.set}), order${r.target ? " of the remaining questions" : ""}: ${r.value}`;
-    case "group_assigned":  return `Group ${r.target}: ${r.value}`;
+    case "group_assigned":  return `Order ${r.target}: ${r.value}`;
     case "pause_end":       return `Break finished after ${sec(r.duration_ms)}`;
     case "part2_confirm_shown":     return "Clicked “Continue to Part 2” (asked to confirm)";
     case "part2_confirm_cancelled": return "Did not confirm Part 2 yet";

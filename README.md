@@ -24,15 +24,15 @@ This opens http://localhost:8000. Nothing needs to be installed besides Python 3
 The first screen is for the researcher:
 
 1. **Participant number**: the same as in Qualtrics. Leave empty to get the next free number (P001, P002, …).
-2. **Group** (Group 1–4; stored as 1–4 in the `group` column). The screen only shows the group name, not which part has the confidence score,
-   so a participant who sees the screen learns nothing about the design. What each group means:
+2. **Order** (Order 1–4; stored as 1–4 in the `group` column). The screen only shows the order number, not which part has the confidence score,
+   so a participant who sees the screen learns nothing about the design. What each order means:
 
-   | Group | First block | Second block |
+   | Order | First block | Second block |
    |---|---|---|
-   | Group 1 | Base, set A | Conf, set B |
-   | Group 2 | Base, set B | Conf, set A |
-   | Group 3 | Conf, set A | Base, set B |
-   | Group 4 | Conf, set B | Base, set A |
+   | Order 1 | Base, set A | Conf, set B |
+   | Order 2 | Base, set B | Conf, set A |
+   | Order 3 | Conf, set A | Base, set B |
+   | Order 4 | Conf, set B | Base, set A |
 
    Base = without confidence score, Conf = with confidence score, "Show details" (agreement per model)
    and pointing at a model to see all 20 of its answers.
@@ -47,7 +47,7 @@ Researcher URL options:
 | Option | Effect |
 |---|---|
 | `?pid=P012` | pre-fill the participant number |
-| `?group=2` | pre-select Group 2 |
+| `?group=2` | pre-select Order 2 |
 | `?debug=1` | researcher view: live event log, measures, "skip to the end of this part" |
 
 ## Study flow
@@ -72,13 +72,13 @@ them to the app data with the participant number. Consent/debrief in the app can
 If the browser window is reloaded or closed during the break or Part 2:
 
 1. Open http://localhost:8000 again.
-2. Enter the **same participant number** and choose the **same group**.
+2. Enter the **same participant number** and choose the **same order**.
 3. Choose **Resume at Part 2** and click the button.
 
 The app goes back to the break screen (if Part 2 had not started) or to the Part 2 instructions, and
 shows only the Part 2 questions that were not answered yet (numbering continues, e.g. 6 of 15). Nothing
 is overwritten: rows are appended to the same files, `participants.csv` gets a `resumed` row and the
-events file a `session_resumed` event. A wrong number or group is refused with an explanation.
+events file a `session_resumed` event. A wrong number or order is refused with an explanation.
 (A reload during Part 1 cannot be resumed: start Part 1 again with a new number, or decide how to handle it.)
 
 ## When you see an error during a session
@@ -119,7 +119,7 @@ starts with the majority answer, is at most two sentences and has no hedging or 
 ## Files
 
 - `index.html` — the participant app (logic and layout)
-- `study-config.js` — settings (incl. the beta switch), groups (Group 1–4) and all texts
+- `study-config.js` — settings (incl. the beta switch), orders (Order 1–4) and all texts
 - `questions.js` — the 30 questions and model answers
 - `check_questions.py` — checks `questions.js`
 - `server.py` — local server; writes CSVs to `data/` (ignored by git). `--data test_data` writes to another

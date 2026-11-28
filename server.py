@@ -217,7 +217,7 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     print(f"  -> resume refused: participant {pid} not found")
                     return self.send_json({"ok": False, "error": "unknown_pid"})
                 if history["group"] and history["group"] != group:
-                    print(f"  -> resume refused: {pid} was in Group {history['group']}, not Group {group}")
+                    print(f"  -> resume refused: {pid} was in Order {history['group']}, not Order {group}")
                     return self.send_json({"ok": False, "error": "group_mismatch",
                                            "previous_group": history["group"]})
             elif reused and not body.get("force"):
@@ -235,10 +235,10 @@ class StudyHandler(SimpleHTTPRequestHandler):
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS,
                         [{**session, "status": "resumed" if resume else "started", "server_time": now_iso()}])
         if resume:
-            print(f"  -> participant {pid} RESUMED at part 2 (Group {group}; answered so far: "
+            print(f"  -> participant {pid} RESUMED at part 2 (Order {group}; answered so far: "
                   f"part 1 {len(history['done']['1'])}, part 2 {len(history['done']['2'])})")
         else:
-            print(f"  -> participant {pid} started (Group {group or '?'})"
+            print(f"  -> participant {pid} started (Order {group or '?'})"
                   + ("  [WARNING: this participant number was used before; "
                      "data are appended to the same files]" if reused else ""))
         return self.send_json({
