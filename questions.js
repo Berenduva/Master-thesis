@@ -1,23 +1,13 @@
-/* ==========================================================================
- QUESTIONS — generated from the ChainForge export (responses_3.xlsx) and the
- local Qwen run (qwen_responses_chainforge_questions.csv). 5 models x 20 runs.
- Q14 was rephrased and re-run for all five models (25 Nov 2026; source:
- Confidence_scores_all_models.xlsx, sheet "All answers").
- Check this file with:  python check_questions.py
+/*
+  The 30 questions, made from the ChainForge export + the local Qwen run (5 models x 20 runs).
+  Q14 was rephrased and re-run on 25 Nov 2026.
 
-   id        question ID (Q01–Q30), stored in every CSV row
-   part      SimpleQA / Dutch facts / Party positions
-   set       A or B (which question set the question belongs to)
-   q         the question
-   answer    the majority answer of all model runs ("Yes" / "No")
-   a         what the AI assistant shows: the majority answer + one real model
-             explanation that gives the same answer (source: aSource)
-   correct   true if the majority answer matches the ground truth (never shown)
-   alt       the correct answer (ground truth)
-   models    every run per model: [1, "full model answer", agrees, invalid?]
-             agrees  = the run gives the same Yes/No as `answer`
-             invalid = the run gave no Yes/No (left out of the score)
- ========================================================================== */
+  answer  = majority answer of all runs
+  a       = what the assistant shows (GPT run 1, see aSource)
+  correct = majority answer matches alt (the ground truth)
+  models  = per model all runs: [1, text, agrees, invalid?]
+            invalid = no yes/no in the answer, not counted
+*/
 const QUESTIONS = [
   {
     id: "Q01",

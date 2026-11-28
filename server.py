@@ -1,47 +1,17 @@
 #!/usr/bin/env python3
 """
-Local study server for the confidence-score thesis study
-=========================================================
+Small local server for the study.
 
-What it does
-------------
-1. Serves the study app (index.html, study-config.js) at http://localhost:8000
-2. Gives every new participant an ID (P001, P002, ...)
-3. Saves everything the app sends into CSV files, one set per participant:
+Serves the app on http://localhost:8000 and writes what it sends to data/:
+  participants.csv     status per participant (started / resumed / finished / withdrew)
+  Pxxx_events.csv      all events (hovers, details, decisions, ...)
+  Pxxx_trials.csv      one row per question
+  Pxxx_responses.csv   consent (only if consent is shown in the app)
 
-     data/participants.csv      one row per status change (started / resumed / finished / withdrew)
-     data/P001_events.csv       every logged event: hovers, details, decisions, ...
-     data/P001_trials.csv       one row per question (the decision plus summary measures)
-     data/P001_responses.csv    the consent statements the participant ticked
+Usage:
+  python server.py [--port 8080] [--lan] [--open] [--data test_data]
 
-(The questionnaires are run separately in Qualtrics; link them via the participant ID.)
-
-Only the Python standard library is used, so there is nothing to install.
-
-How to run
-----------
-    python server.py                 # http://localhost:8000, only reachable from this computer
-    python server.py --port 8080     # different port
-    python server.py --lan           # also reachable from other devices on the same network
-    python server.py --open          # open the study in your default browser
-    python server.py --data test_data  # save the CSVs in another folder (e.g. for a test run)
-
-Useful URL parameters for the researcher (add to the address):
-    ?pid=P012        pre-fill the participant number on the setup screen
-    ?group=2         pre-select Group 2 on the setup screen
-    ?debug=1         show the live event log next to the participant screen
-
-Resuming: if the browser window was reloaded or closed during the break or part 2,
-choose "Resume at Part 2" on the setup screen with the same participant number and
-group. The server looks up which questions were already answered (in Pxxx_trials.csv),
-adds a "resumed" row to participants.csv and appends to the same files; nothing is
-overwritten.
-
-Reused numbers: starting a NEW session with a participant number that already exists
-is refused first (the setup screen asks the researcher to confirm). If the researcher
-starts it anyway, the console shows a warning.
-
-The data/ folder is listed in .gitignore so participant data never ends up on GitHub.
+Only uses the standard library. data/ is in .gitignore.
 """
 
 import argparse
@@ -57,24 +27,15 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-# --------------------------------------------------------------------------
-# Paths
-# --------------------------------------------------------------------------
-ROOT = Path(__file__).resolve().parent          # the repository folder
-DATA_DIR = ROOT / "data"                        # all CSV output goes here (change with --data)
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
 PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 
-# Files the browser is allowed to request. Everything else (data/, .git/,
-# this script) is refused, so participants can never download other people's data.
+# only these files can be requested, so nobody can download data/
 STATIC_ALLOWED = re.compile(r"^/(index\.html|study-config\.js|questions\.js|favicon\.ico|assets/[\w\-./]+)?$")
 
-# The researcher picks the participant's group (Group 1–4, stored as 1–4) on the setup screen; the group
-# fixes which block is shown with / without the confidence score and with which
-# question set (GROUPS in study-config.js). Group, block and set are saved per row.
 
-# --------------------------------------------------------------------------
-# CSV column definitions (fixed order, so every file is easy to merge in R/pandas)
-# --------------------------------------------------------------------------
+# csv columns
 PARTICIPANT_FIELDS = [
     "pid", "session_id", "group", "status", "server_time", "user_agent", "screen",
 ]
@@ -96,21 +57,18 @@ RESPONSE_FIELDS = [
     "item_id", "item_text", "position", "value", "reverse_scored", "server_time",
 ]
 
-# One lock for all file writes: the server is multi-threaded and two requests
-# must never write to the same CSV at the same moment.
-WRITE_LOCK = threading.RLock()  # re-entrant: start_session holds it while appending
+# the server is threaded, so lock all writes
+WRITE_LOCK = threading.RLock()
 
 PID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
 
 
 def now_iso() -> str:
-    """Current time as an ISO-8601 string in UTC, millisecond precision."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds")
 
 
 def append_rows(path: Path, fields: list, rows: list) -> None:
-    """Append dict rows to a CSV file, writing the header first if the file is new.
-    Unknown keys are ignored and missing keys are left empty."""
+    """Append rows, write the header if the file is new."""
     DATA_DIR.mkdir(exist_ok=True)
     with WRITE_LOCK:
         new_file = not path.exists() or path.stat().st_size == 0
@@ -123,7 +81,7 @@ def append_rows(path: Path, fields: list, rows: list) -> None:
 
 
 def clean(value):
-    """Make a value safe for one CSV cell (lists -> 'a; b', no line breaks)."""
+    """One csv cell: lists become "a; b", no newlines."""
     if value is None:
         return ""
     if isinstance(value, bool):
@@ -136,7 +94,7 @@ def clean(value):
 
 
 def next_participant_number() -> int:
-    """Highest number used so far in participants.csv (P007 -> 7), plus one."""
+    """Next free P-number."""
     highest = 0
     if PARTICIPANTS_CSV.exists():
         with PARTICIPANTS_CSV.open(newline="", encoding="utf-8") as f:
@@ -155,8 +113,7 @@ def known_pids() -> set:
 
 
 def participant_history(pid: str) -> dict:
-    """What is already stored for this participant: the group of their first session,
-    every status so far, and which questions they answered per block (from Pxxx_trials.csv)."""
+    """Group, statuses and answered questions per block for this pid."""
     group, statuses = "", []
     if PARTICIPANTS_CSV.exists():
         with PARTICIPANTS_CSV.open(newline="", encoding="utf-8") as f:
@@ -176,12 +133,10 @@ def participant_history(pid: str) -> dict:
 
 
 class StudyHandler(SimpleHTTPRequestHandler):
-    """Serves the static app and handles the small JSON API under /api/."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
-    # ---- static files -----------------------------------------------------
     def do_GET(self):
         path = urlparse(self.path).path
         if path == "/api/health":
@@ -191,16 +146,15 @@ class StudyHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def end_headers(self):
-        # Never cache: after you edit index.html or study-config.js, a reload shows the new version.
+        # no caching, so edits show up after a reload
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
 
     def log_message(self, fmt, *args):
-        # Keep the console readable: only show API calls and errors, not every file request.
+        # only log api calls and errors
         if "/api/" in self.path or (args and str(args[1])[:1] in "45"):
             super().log_message(fmt, *args)
 
-    # ---- API --------------------------------------------------------------
     def do_POST(self):
         route = urlparse(self.path).path
         try:
@@ -212,7 +166,6 @@ class StudyHandler(SimpleHTTPRequestHandler):
         if route == "/api/session":
             return self.start_session(body)
 
-        # Every other route writes data for an existing participant.
         pid = str(body.get("pid", ""))
         if not PID_PATTERN.match(pid):
             return self.send_json({"ok": False, "error": "invalid pid"}, HTTPStatus.BAD_REQUEST)
@@ -236,7 +189,6 @@ class StudyHandler(SimpleHTTPRequestHandler):
             return self.send_json({"ok": True, "saved": len(rows)})
 
         if route == "/api/status":
-            # Called when a participant finishes or withdraws.
             append_rows(PARTICIPANTS_CSV, PARTICIPANT_FIELDS, [{
                 **body.get("session", {}), "pid": pid,
                 "status": body.get("status", ""), "server_time": now_iso(),
@@ -246,21 +198,16 @@ class StudyHandler(SimpleHTTPRequestHandler):
         return self.send_json({"ok": False, "error": "unknown route"}, HTTPStatus.NOT_FOUND)
 
     def start_session(self, body: dict):
-        """Assign (or accept) a participant ID, or resume an existing participant.
-
-        mode "new"     start at Part 1. A participant number that already exists is
-                       refused (error "pid_exists") unless body.force is true.
-        mode "resume"  continue an existing participant at Part 2 (after a reload or a
-                       closed window). The number must exist and the group must match;
-                       the reply lists the questions already answered per block."""
+        """New session or resume.
+        new: refused if the pid exists, unless force
+        resume: pid must exist and the group must match"""
         resume = body.get("mode") == "resume"
         group = str(body.get("group", ""))[:8]
         with WRITE_LOCK:
             requested = str(body.get("pid") or "").strip()
             if requested and not PID_PATTERN.match(requested):
                 return self.send_json({"ok": False, "error": "invalid pid"}, HTTPStatus.BAD_REQUEST)
-            # Hold the lock until the 'started' row is written, so two participants
-            # starting at the same moment can never receive the same ID.
+            # keep the lock until the row is written so two people never get the same pid
             pid = requested or f"P{next_participant_number():03d}"
             reused = requested in known_pids() if requested else False
             history = participant_history(pid) if reused else None
@@ -274,7 +221,6 @@ class StudyHandler(SimpleHTTPRequestHandler):
                     return self.send_json({"ok": False, "error": "group_mismatch",
                                            "previous_group": history["group"]})
             elif reused and not body.get("force"):
-                # Nothing is written: the setup screen asks the researcher what to do.
                 print(f"  -> WARNING: participant number {pid} was used before (not started; "
                       f"the setup screen asks the researcher to resume or use another number)")
                 return self.send_json({"ok": False, "error": "pid_exists", "history": history})
@@ -325,8 +271,7 @@ def main():
     DATA_DIR = (ROOT / args.data).resolve()
     PARTICIPANTS_CSV = DATA_DIR / "participants.csv"
 
-    # Show console messages (e.g. the reused-number warning) immediately, also when the
-    # output is not a terminal.
+    # print right away, also when not in a terminal
     sys.stdout.reconfigure(line_buffering=True)
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     DATA_DIR.mkdir(exist_ok=True)

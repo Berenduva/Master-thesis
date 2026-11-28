@@ -1,28 +1,15 @@
-/* ==========================================================================
-   STUDY CONTENT
-   --------------------------------------------------------------------------
-   Everything a participant reads in the app lives in this file (texts) and in
-   questions.js (the 30 questions with all model answers), so you can change
-   them without touching the app logic in index.html.
-   The questionnaires (GAAIS-10, Jian, extra questions), consent and debrief
-   are done in Qualtrics.
+/*
+  Settings, groups and texts for the study app.
+  Questions are in questions.js. Questionnaires, consent and debrief are in Qualtrics.
 
-   Design: two blocks of 15 questions. At the start the researcher chooses the
-   participant's group (Group 1–4), which fixes the order of the conditions and
-   which question set (A or B) goes with which condition:
+  group   part 1         part 2
+  1       Base, set A    Conf, set B
+  2       Base, set B    Conf, set A
+  3       Conf, set A    Base, set B
+  4       Conf, set B    Base, set A
 
-       group   block 1          block 2
-       1       Base, set A      Conf, set B
-       2       Base, set B      Conf, set A
-       3       Conf, set A      Base, set B
-       4       Conf, set B      Base, set A
-
-   Base = without confidence score, Conf = with confidence score.
-   Within a block the 15 questions are shown in a FIXED order (the order in
-   questions.js), the same for every participant (see randomizeOrder below).
-   The setup screen only shows "Group 1"–"Group 4", not what each group means, so a
-   participant who sees it learns nothing about the design.
-   ========================================================================== */
+  Base = no confidence score, Conf = with confidence score.
+*/
 
 const STUDY = {
   title: "Answers from an AI assistant",
@@ -30,42 +17,35 @@ const STUDY = {
   supervisor: "Katja Rogers",
   institution: "University of Amsterdam",
   contactEmail: "berend.de.vries@student.uva.nl",
-  estimatedMinutes: 25,                            // TODO: update after the pilot
-  completionCode: "",                              // optional, e.g. for SONA / Prolific
+  estimatedMinutes: 25,                            // TODO update after pilot
+  completionCode: "",
 
-  // >>> BETA SWITCH <<<  true = EVERYONE sees the researcher view (live log + measures)
-  // next to the study, e.g. for a demo on GitHub Pages. MUST be false for real participants.
-  // With beta: false the researcher can still open the view with ?debug=1 in the address.
+  // BETA: true = everyone sees the researcher panel (for demos). Set to false for real participants!
+  // (with false you can still see it with ?debug=1)
   beta: true,
 
-  // Consent and debrief are done in Qualtrics. Set to true to show them in the app as well.
+  // consent/debrief are in Qualtrics, true = also show them here
   showConsent: false,
   showDebrief: false,
 
-  // Each model was asked every question this many times.
+  // runs per model
   answersPerModel: 20,
 
-  // false = every participant gets the questions of a set in the same, fixed order
-  // (the order in questions.js). true = a new random order per participant.
+  // false = same fixed order for everyone (order in questions.js)
   randomizeOrder: false,
 
-  // Which questions are used, by ID. Leave the list empty ([]) to use ALL questions.
+  // only use these question ids, [] = all
   activeQuestions: [],
 
-  // "AI is thinking" animation before each answer, then the answer is typed out.
-  // Same for every question, so the delay never hints at whether an answer is right.
-  thinkingMs: 2500,      // how long the thinking dots show (ms); long enough to read the question first
-  typingMsPerChar: 25,   // typing speed (ms per character); 0 = show the answer at once
+  // thinking dots + typing, same for every question
+  thinkingMs: 2500,      // ms
+  typingMsPerChar: 25,   // ms per character, 0 = no typing
 
-  // Hovers on a model (or on its answer list) shorter than this are logged as "short"
-  // but not counted as "looked at" in the trial summary.
+  // hovers shorter than this are logged as "short" and not counted
   hoverThresholdMs: 400
 };
 
-/* The four groups: [condition, question set] for block 1 and block 2.
-   The key ("1"–"4") is the group number shown on the setup screen as "Group 1" etc.
-   and stored in the "group" column of every CSV file.
-   "baseline" = without confidence score, "confidence" = with confidence score. */
+// [condition, set] for part 1 and part 2
 const GROUPS = {
   "1": [["baseline", "A"], ["confidence", "B"]],
   "2": [["baseline", "B"], ["confidence", "A"]],
@@ -73,9 +53,7 @@ const GROUPS = {
   "4": [["confidence", "B"], ["baseline", "A"]]
 };
 
-/* --------------------------------------------------------------------------
-   TEXTS
-   -------------------------------------------------------------------------- */
+// ---------- texts ----------
 const TEXTS = {
   consent: `
     <p>You are invited to take part in a study by <strong>${STUDY.researcher}</strong> for a master’s thesis at the
@@ -93,12 +71,11 @@ const TEXTS = {
     <p>Participation is voluntary. You can stop at any moment without giving a reason, and you can ask for your data to
     be removed until it has been analysed. Questions? Contact ${STUDY.contactEmail}.</p>`,
 
-  // One checkbox for consent (stored as item "c1" in Pxxx_responses.csv).
   consentChecks: [
     "I have read the information above, I am 18 years or older, and I voluntarily agree to take part and to my anonymous data being used for this research."
   ],
 
-  // Instructions before a block WITHOUT confidence score.
+  // instructions without score
   introBase: `
       <p>You will see a series of questions about news and politics. For each one, an AI assistant gives an answer.</p>
       <ul>
@@ -107,7 +84,7 @@ const TEXTS = {
       </ul>
       <p>Answer as you would when using generative AI in daily life. There is no time limit.</p>`,
 
-  // Instructions before a block WITH confidence score.
+  // instructions with score
   introConf: `
       <p>You will see a series of questions about news and politics. For each one, an AI assistant gives an answer.</p>
       <p>In this part, every answer comes with a <strong>confidence score</strong>. Click <strong>Show details</strong>
@@ -118,13 +95,13 @@ const TEXTS = {
       </ul>
       <p>Answer as you would when using generative AI in daily life. There is no time limit.</p>`,
 
-  // Shown after block 1.
+  // break screen
   breakScreen: `
       <p>You have finished Part 1. Thank you!</p>
       <p><strong>Please go back to the questionnaire now</strong> and leave this window open.
       When the researcher tells you to, come back here and continue with Part 2.</p>`,
 
-  // Shown after block 2 (when showDebrief is false).
+  // end screen
   endScreen: `
       <p>You have finished Part 2. Thank you!</p>
       <p><strong>Please go back to the questionnaire</strong> to complete the last questions.</p>`,
